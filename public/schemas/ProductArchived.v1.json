@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/ProductArchived.v1.json",
+  "title": "ProductArchived.v1",
+  "description": "Emitted when a product is archived.",
+  "x-peaky-event": {
+    "type": "ProductArchived.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "previousStatus": {
+      "type": "string",
+      "description": "The product's status value before it was archived.",
+      "markdownDescription": "The product's status value before it was archived."
+    }
+  },
+  "required": [
+    "previousStatus"
+  ],
+  "additionalProperties": false
+}

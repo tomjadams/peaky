@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/TemplateDraftDeleted.v1.json",
+  "title": "TemplateDraftDeleted.v1",
+  "description": "Emitted when a template draft is permanently deleted.",
+  "x-peaky-event": {
+    "type": "TemplateDraftDeleted.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Display name of the template draft at the time it was permanently deleted.",
+      "markdownDescription": "Display name of the template draft at the time it was permanently deleted."
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,39 @@
+{
+  "featureId": "fix-templates-put-field-sync",
+  "reviewedAt": "2026-03-06T11:30:00.000Z",
+  "commitId": "deab7eb35259865ef4335c87acc0588f31c148c6",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix correctly adds version, description, and pillars (as slug strings) to the summary sync block in PUT /api/templates/[id].put.ts. The implementation is minimal, correct, and follows existing patterns. Three well-targeted tests were added covering each new synced field. The pillar conversion from TemplatePillar[] to string[] via .map(p => p.slug) is correct given that the Template summary type has pillars as string[] while TemplateDetail has TemplatePillar[]. All existing tests continue to pass.",
+    "issues": [
+      {
+        "file": "server/api/templates/[id].put.ts",
+        "line": 44,
+        "severity": "non_blocking",
+        "description": "The pillars.map(p => p.slug) call on line 44 will throw if body.pillars is an empty array (which is fine) but would also throw if updatedTemplate.pillars contains items without a slug property. This is safe in the current codebase because the TemplatePillar type guarantees slug exists, but there's no runtime validation (e.g., Zod schema) on the request body to ensure the incoming pillars conform to TemplatePillar[]. If a malformed pillar object without a slug is sent, it would result in undefined values in the summary array rather than a clean error. This is a pre-existing concern (applies to the detail storage too) and not introduced by this fix."
+      },
+      {
+        "file": "server/api/templates/[id].put.ts",
+        "line": 40,
+        "severity": "non_blocking",
+        "description": "The feature description mentions syncing pillarNames 'if applicable', but the Template summary type's pillars field is typed as `string[] | TemplatePillar[]`. The summary seed data uses string[] (slug strings). The fix correctly converts to slug strings, which is consistent with the seed data pattern. No issue, just noting the type allows both forms."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The PUT endpoint accepts a Partial<TemplateDetail> body with no Zod runtime validation. All other API patterns in the codebase similarly lack request body validation. This is consistent across the codebase but worth noting — the feature description and AGENTS.md mention Zod schemas as a pattern, but none are used in the template endpoints yet.",
+      "evidence": "server/api/templates/[id].put.ts:25 uses readBody<Partial<TemplateDetail>>(event) with only TypeScript type annotation, no runtime validation. Same pattern in server/api/templates/index.post.ts."
+    },
+    {
+      "area": "skills",
+      "observation": "The backend-worker skill procedure step 6 requires manual curl verification against the dev server, but the worker did not perform any interactive checks (no interactiveChecks in the handoff). The worker followed procedure for all other steps (RED/GREEN/REFACTOR, typecheck, lint, test). The missing curl verification is understandable since the fix is well-covered by unit tests, but it deviates from the documented skill procedure.",
+      "evidence": "Handoff verification.commandsRun has 3 entries (test, typecheck, lint) but no interactiveChecks field. Skill SKILL.md step 6 says 'Use curl to test the modified endpoints against the running dev server'. skillFeedback.followedProcedure is true despite this omission."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "The fix correctly syncs version, description, and pillars to the templates summary array on PUT, addressing the data inconsistency described in the feature. The implementation is minimal (3 lines added), type-safe, and well-tested with 3 new unit tests. No blocking issues found. Two non-blocking observations: (1) no runtime validation on request body (pre-existing pattern), and (2) the worker skipped the curl manual verification step from the skill procedure. Overall: clean, correct fix that passes review."
+}

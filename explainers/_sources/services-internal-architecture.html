@@ -1,0 +1,444 @@
+<!-- services/internal — feature-first layout, the 8-minute read.
+     Assemble: python3 .factory/skills/explainer/assemble.py explainers/_sources/services-internal-architecture.html -->
+
+<p style="font:15px/1.6 -apple-system,sans-serif;max-width:640px;margin:40px auto;padding:18px 22px;border:1px solid #b45309;color:#78350f;background:#fffbeb">
+  <strong>Note:</strong> this is an <code>/explainer</code> content source, not a finished page —
+  assemble it first (see <code>.factory/skills/explainer/README.md</code>):<br>
+  <code>python3 .factory/skills/explainer/assemble.py explainers/_sources/services-internal-architecture.html</code>
+</p>
+
+<script type="application/json" data-slot="meta">
+{
+  "title": "One layout, every feature — services/internal, feature-first",
+  "style": "editorial",
+  "components": ["ledger", "filetree", "contrast", "stepper", "flow", "before-after"],
+  "output": "explainers/services-internal-architecture-explainer.html",
+  "md": false,
+  "thesis": "services/internal was reorganized from mixed-concern packages into one fixed file vocabulary per feature — routes, handler, DTOs, domain, persistence, authz — with no change to the HTTP contract, partly enforced by a reviewer and partly by depguard import rules.",
+  "slides": [
+    {"kicker": "Hero", "title": "One layout, every feature.", "point": "services/internal now uses one fixed file vocabulary per feature — routes, handler, DTOs, domain, persistence, authz — with no change to the HTTP contract"},
+    {"kicker": "01 · Before", "title": "Two conflicting organization schemes", "point": "mingled files, routes registered far from their handlers, and one package (syncengine/repo) quietly meaning two things"},
+    {"kicker": "02 · The rule", "title": "A fixed file vocabulary", "point": "six concerns, six fixed homes — routes.go, handler.go, models.go, repo.go, entity/conflict, internal/authz — applied proportionally to each feature"},
+    {"kicker": "03 · The shape", "title": "One folder per feature", "point": "the same vocabulary, before and after — new files (routes.go, split-out models/repo) carry the accent; unchanged files stay plain"},
+    {"kicker": "04 · Preparing for Cedar", "title": "The sync engine enforces; it never decides", "point": "callers pass the raw entity; the Authorizer interface — lifted out of syncengine/repo into internal/authz — alone resolves the gating resource and returns Allow or Deny"},
+    {"kicker": "04 · Preparing for Cedar", "title": "Same interface, one more hop", "point": "Cedar runs as its own service — the in-process call becomes one POST /authorize, with no change to the features calling it"},
+    {"kicker": "05 · Walkthrough", "title": "Adding a sync entity, step by step", "point": "three questions in three fixed places — known type? (registry), who may edit it? (authz config), which family hears it? (entity.Family) — no new endpoint"},
+    {"kicker": "06 · Wiring it up", "title": "Wiring features into lean binaries", "point": "a binary's import list is its contents — peaky-sse never imports catalog, events, or syncengine, so none of it ships in that binary"},
+    {"kicker": "A · Guardrails", "title": "Two guardrails: deterministic and judged", "point": "rtf-go-reviewer catches judgment calls; depguard mechanically fails the build on three forbidden-import rules"},
+    {"kicker": "A · Guardrails", "title": "Three rules, one dividing line", "point": "depguard can only see imports — where a type is defined, or whether a route lives in routes.go, stays the reviewer's call"}
+  ],
+  "facts": [
+    "services/internal now uses one file vocabulary per feature: routes.go, handler.go, models.go, repo.go, entity/conflict (domain, no Fuego), internal/authz — no change to the HTTP contract, JSON shapes, or HLC wire format",
+    "authz.Authorizer lives in internal/authz (lifted out of syncengine/repo); callers pass the raw entity and the boundary alone resolves the resource and decides — the interface a future Cedar-backed service will implement behind, unchanged",
+    "adding a sync entity is three fixed steps: register the type in syncengine/entity/registry.go, grant entitlements in actors.json, and map the type to one of three families (review, product, template) in entity/channel.go",
+    "fan-out is per-family, not per-object: push.go calls pg_notify(sync:{family}:catalog) once per distinct family touched in a push batch; peaky-sse relays it to every client whose entitlement includes that family, and each client re-pulls under its own entitlement scope",
+    "three depguard rules enforce the layering mechanically: domain-no-fuego (syncengine/conflict and entity must not import go-fuego/fuego), sse-binary-lean and ctl-binary-lean (cmd/peaky-sse and cmd/peaky-ctl must not import HTTP feature packages they don't serve)",
+    "rtf-go-reviewer (an LLM reviewer) catches placement mistakes depguard cannot see mechanically, since depguard only inspects imports, not where a type is defined or whether a route lives in routes.go",
+    "the three binaries are peaky-api, peaky-sse, and peaky-ctl, built from one module and kept lean by their own import lists — the compiler enforces the boundary"
+  ],
+  "links": []
+}
+</script>
+
+<template data-slot="content">
+<!-- ── HERO ── -->
+<section id="top" class="hero">
+  <div class="reveal">
+    <div class="hero-kicker">Peaky backend · structural refactor</div>
+    <h1 class="display">One layout,<br><em>every feature.</em></h1>
+    <p class="lede">Peaky's backend, <code>services/internal</code>, is reorganized so a maintainer can open any feature folder and immediately see where the routes, the HTTP handler, the wire types, and the domain logic live. Same vocabulary in every folder.</p>
+    <p class="eyebrow" style="margin-top:28px">Feature-first · no API contract change · authz is a boundary · routes.go per feature</p>
+    <p class="gloss-hint">New to the stack? <button class="term" data-term="fuego">Dotted terms</button> open a plain-English definition.</p>
+    <details class="tldr">
+      <summary>TL;DR</summary>
+      <div class="tldr-body">
+        <p><em>The one rule:</em> routes&nbsp;→&nbsp;<code>routes.go</code>, handler&nbsp;→&nbsp;<code>handler.go</code>, JSON&nbsp;→&nbsp;<code>models.go</code>, domain&nbsp;→&nbsp;<code>entity</code>/<code>conflict</code>, persistence&nbsp;→&nbsp;<code>repo</code>, auth&nbsp;→&nbsp;<code>authz</code>.</p>
+        <p><em>Unchanged:</em> the HTTP contract — routes, JSON shapes, the push/pull wire format, the HLC format.</p>
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- ── 01 · THE PROBLEM ── -->
+<section id="problem">
+  <div class="reveal" id="problemHead">
+    <span class="eyebrow">01 · Before</span>
+    <h2 class="sec-title">Two conflicting organization schemes</h2>
+    <p class="sec-sub">The layout had grown unevenly: <code>sync/</code> was carved into sub-packages, while <code>catalog</code>, <code>events</code>, and <code>attachment</code> stayed flat, one-file packages that mixed everything.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="problemLedger"></div>
+</section>
+
+<!-- ── 02 · THE RULE ── -->
+<section id="rule">
+  <div class="reveal" id="ruleHead">
+    <span class="eyebrow">02 · The rule</span>
+    <h2 class="sec-title">A fixed file vocabulary</h2>
+    <p class="sec-sub">Every HTTP feature folder under <code>internal/&lt;feature&gt;/</code> uses the same small set of file roles, applied proportionally — a 77-line feature keeps one <code>handler.go</code>; a tangled one splits.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="ruleLedger"></div>
+</section>
+
+<!-- ── 03 · THE SHAPE (centerpiece) ── -->
+<section id="shape">
+  <div class="reveal" id="shapeHead">
+    <span class="eyebrow">03 · The shape</span>
+    <h2 class="sec-title">One folder per feature</h2>
+    <p class="sec-sub">The same vocabulary, before and after. Files added or split out by this refactor carry the accent; everything else keeps its shape.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="shapeTree"></div>
+</section>
+
+<!-- ── 04 · BOUNDARY (preparing for Cedar) ── -->
+<section id="boundary">
+  <div class="reveal" id="boundaryHead">
+    <span class="eyebrow">04 · Preparing for Cedar</span>
+    <h2 class="sec-title">Authorization is a separate boundary</h2>
+    <p class="sec-sub">Authorization is heading to <b>Cedar</b>, eventually its own service. To make that swap straightforward, the line is drawn now: the sync engine forwards the raw entity and enforces the verdict it gets back; it never resolves a resource or knows a policy.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="boundaryContrast"></div>
+
+  <div class="reveal reveal-delay-1 artifact code-block" id="authzCode">
+    <div class="code-head"><i></i>internal/authz/authz.go — the boundary</div>
+    <pre><span class="y-com">// Callers pass the RAW entity; the boundary resolves the</span>
+<span class="y-com">// gating resource and decides. Features forward and enforce.</span>
+<span class="y-key">type</span> Authorizer <span class="y-key">interface</span> {
+	CanEdit(ctx context.Context, actorID, entityType, entityID <span class="y-key">string</span>) (<span class="y-key">bool</span>, error)
+	CanView(ctx context.Context, actorID, entityType, entityID <span class="y-key">string</span>) (<span class="y-key">bool</span>, error)
+	ViewableEntities(ctx context.Context, actorID, entityType <span class="y-key">string</span>) ([]<span class="y-key">string</span>, error)
+	Entitlements(ctx context.Context, actorID <span class="y-key">string</span>) (map[<span class="y-key">string</span>]Entitlement, error)
+}</pre>
+  </div>
+
+</section>
+
+<!-- ── 04 · CEDAR (tomorrow) — its own section: present mode anchors one
+     slide per <section>, so "today" and "tomorrow" split cleanly. ── -->
+<section id="cedar">
+  <div class="reveal" id="cedarHead">
+    <span class="eyebrow">04 · Preparing for Cedar</span>
+    <h2 class="sec-title">Tomorrow: Cedar becomes its own service</h2>
+    <p class="sec-sub">The boundary becomes an API. Cedar runs as its own service — own binary, own scaling profile — holding the policies and the entity graph. The sync engine only sends requests; the same <code>Authorizer</code> shape crosses one HTTP hop instead of a function call.</p>
+  </div>
+  <figure class="reveal reveal-delay-1 artifact" id="archFlow" aria-label="future deployment: peaky-api calls a separate Cedar authz service over an API"></figure>
+
+  <div class="reveal reveal-delay-1 artifact code-block" id="cedarCode">
+    <div class="code-head"><i></i>cedar-go — the shape crossing the wire</div>
+    <pre>decision, _ := cedar.Authorize(policies, entities, cedar.Request{
+	Principal: cedar.NewEntityUID(<span class="y-str">"Actor"</span>, actorID),
+	Action:    cedar.NewEntityUID(<span class="y-str">"Action"</span>, <span class="y-str">"sync::write"</span>),
+	Resource:  cedar.NewEntityUID(<span class="y-str">"ReviewAnswer"</span>, entityID),
+	Context:   cedar.NewRecord(reqContext),
+}) <span class="y-com">// decision == cedar.Allow | cedar.Deny</span></pre>
+  </div>
+</section>
+
+<!-- ── 05 · WALKTHROUGH: ADDING AN ENTITY ── -->
+<section id="walkthrough">
+  <div class="reveal" id="walkthroughHead">
+    <span class="eyebrow">05 · Walkthrough · adding a sync entity</span>
+    <h2 class="sec-title">Adding an entity, step by step</h2>
+    <p class="sec-sub">The practical question: how do you add a new sync entity? Work backwards from the goal — it becomes three small answers in three known places, with no change to push, pull, or the routes. (Worked example — <code>template_comment</code> is illustrative, not a shipped type.)</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="entStepper"></div>
+</section>
+
+<!-- ── 06 · WIRING / LEAN BINARIES ── -->
+<section id="binaries">
+  <div class="reveal" id="binariesHead">
+    <span class="eyebrow">06 · Wiring it up</span>
+    <h2 class="sec-title">Wiring features into lean binaries</h2>
+    <p class="sec-sub">One module, three executables. Three steps combine feature packages into independently lean binaries, with the compiler enforcing the boundaries.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="binStepper"></div>
+</section>
+
+<!-- ── A · GUARDRAILS ── -->
+<section id="guardrails">
+  <div class="reveal" id="guardHead">
+    <span class="eyebrow">A · Guardrails</span>
+    <h2 class="sec-title">Two guardrails: deterministic and judged</h2>
+    <p class="sec-sub">The layering is verified two ways — the line between them is whether a machine can decide it.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="guardContrast"></div>
+</section>
+
+<!-- ── A · GUARDRAILS: the three depguard rules — its own section, same
+     reason as #cedar above: one <section> per present slide. ── -->
+<section id="guardrules">
+  <div class="reveal" id="guardRulesHead">
+    <span class="eyebrow">A · Guardrails</span>
+    <h2 class="sec-title">Three rules, one dividing line</h2>
+    <p class="sec-sub">Each rule blocks one import pattern and allows the rest — <code>make lint:go</code> and CI fail the build, no human in the loop.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="guardRules"></div>
+  <p class="muted-note reveal reveal-delay-2" id="guardNote" style="max-width:74ch"><b>The dividing line:</b> depguard can only see <em>imports</em>, so "domain imports Fuego" and "a binary imports a feature it doesn't serve" fail the build mechanically. Where a type is <em>defined</em>, or whether a route lives in <code>routes.go</code>, is not an import — that stays the reviewer's call.</p>
+</section>
+
+<p class="muted-note reveal" style="max-width:1100px;margin:0 auto 90px;padding:0 clamp(24px,5vw,80px)">services/internal · feature-first layout · the <code>template_comment</code> walkthrough (05) is a worked example, not a shipped feature.</p>
+</template>
+
+<style data-slot="page-css">
+/* nothing bespoke needed — ledger, filetree, contrast, stepper, flow, and
+   before-after cover every device on this page. Go/ascii code samples reuse
+   the kit's existing y-key/y-str/y-com token classes (see page-js highlightGo). */
+</style>
+
+<script data-slot="page-js">
+window.GLOSSARY = {
+  fuego: {t:'Fuego', d:'The Go web framework (<code>go-fuego/fuego</code>) used for HTTP handlers, routing, and OpenAPI options across every peaky-api feature. Domain packages must not import it — see the <code>domain-no-fuego</code> rule below.'},
+  hlc: {t:'HLC — Hybrid Logical Clock', d:'A logical clock combining wall-clock time with a counter, used to order concurrent field edits without a central sequencer. <code>syncengine/conflict</code> resolves push conflicts by comparing HLC values.'},
+  entitlement: {t:'Entitlement', d:'An actor\u2019s access level for one entity key (<code>entityType:entityID</code> or <code>entityType:*</code> for a wildcard) — <code>CanView</code> and <code>CanEdit</code>. Stored in <code>seed/actors.json</code> today; read through the <code>Authorizer</code> interface.'},
+  depguard: {t:'depguard', d:'A golangci-lint linter that forbids imports by package + path. It only sees import statements, so it enforces "who may import whom," not where a type is defined — that stays the reviewer\u2019s job.'},
+  family: {t:'SSE family', d:'One of three routable channels — <code>review</code>, <code>product</code>, <code>template</code>. <code>entity.Family(type)</code> maps a sync entity type to its family; only the family segment of an entitlement key (e.g. <code>review:*</code> or <code>review:review-001</code>) decides which <code>sync:{family}:catalog</code> channel a client subscribes to.'}
+};
+
+/* ── tiny code highlighters — reuse the kit's y-key/y-str/y-com/y-num tokens ── */
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function highlightGo(text){
+  var html = escHtml(text);
+  var tokens = [];
+  var tok = function(cls, m){ var i = tokens.length; tokens.push('<span class="'+cls+'">'+m+'</span>'); return '\x00'+i+'\x00'; };
+  html = html.replace(/(\/\/[^\n]*)/g, function(m){ return tok('y-com', m); });
+  html = html.replace(/("(?:[^"\\\x00]|\\.)*")/g, function(m){ return tok('y-str', m); });
+  var kws = ['package','import','func','type','struct','interface','map','return','if','else','for','range','switch','case','default','var','const'];
+  html = html.replace(new RegExp('\\b('+kws.join('|')+')\\b','g'), '<span class="y-key">$1</span>');
+  html = html.replace(/(?<!\x00)\b(\d+)\b(?!\x00)/g, '<span class="y-num">$1</span>');
+  return html.replace(/\x00(\d+)\x00/g, function(_, i){ return tokens[+i]; });
+}
+
+/* 01 · the problem, before the rule */
+renderLedger('#problemLedger', { groups: [{
+  label: 'Before · 3 problems',
+  rows: [
+    {title:'Mingled files', sub:'<code>events/handler.go</code> was 204 lines holding a wire type, a repo interface, a Postgres implementation, the handler, and CloudEvents validation — five concerns in one file.'},
+    {title:'Routes elsewhere', sub:'Every route was registered inline in <code>cmd/peaky-api/main.go</code>, so "this path \u2192 this logic" meant hopping between <code>main.go</code> and N packages.'},
+    {title:'Double duty', sub:'<code>syncengine/repo</code> was both the sync persistence port <em>and</em> the home of cross-feature AuthZ — so <code>middleware</code>, <code>events</code>, and <code>attachment</code> all imported "the sync repo" just to read permissions.'}
+  ]
+}]});
+
+/* 02 · the fixed vocabulary */
+renderLedger('#ruleLedger', { numbered: true, groups: [{
+  rows: [
+    {title:'Route registration', sub:'The only place URLs and <button class="term" data-term="fuego">Fuego</button> options live — <code>RegisterRoutes(s, h)</code>.', ref:'routes.go'},
+    {title:'The HTTP handler', sub:'Fuego in, response out. Orchestration only.', ref:'handler.go · push.go · pull.go'},
+    {title:'Request/response DTOs', sub:'JSON wire types — mirrors the frontend <code>app/models/</code> convention.', ref:'models.go'},
+    {title:'Persistence', sub:'SQL and fakes behind a port.', ref:'repo.go · syncengine/repo'},
+    {title:'Domain logic (no Fuego)', sub:'Entity registry and <button class="term" data-term="hlc">HLC</button> conflict resolution.', ref:'syncengine/entity · syncengine/conflict'},
+    {title:'Authorization', sub:'<code>Authorizer</code> + <code>Entitlement</code>, consumed everywhere.', ref:'internal/authz'}
+  ]
+}]});
+
+/* 03 · the shape — before/after, the centerpiece */
+renderFiletree('#shapeTree', {
+  panes: [
+    {label:'services/internal — before', tree: [
+      {name:'cmd/peaky-api/main.go', note:'every route registered inline, here'},
+      {name:'events/', children:[
+        {name:'handler.go', mark:'removed', note:'204 lines \u2014 wire type + repo + handler + validation, in one file'}
+      ]},
+      {name:'syncengine/', children:[
+        {name:'repo/', note:'also held cross-feature AuthZ + Entitlement'}
+      ]},
+      {name:'catalog/', note:'flat, one file'},
+      {name:'attachment/', note:'flat, one file'}
+    ]},
+    {label:'after', sub:'one folder per feature', accent:true, tree: [
+      {name:'events/', children:[
+        {name:'routes.go', mark:'added'},
+        {name:'handler.go'},
+        {name:'models.go', mark:'added'},
+        {name:'repo.go', mark:'added'},
+        {name:'envelope.go', mark:'added'}
+      ]},
+      {name:'syncengine/', children:[
+        {name:'routes.go', mark:'added'},
+        {name:'handler.go'},
+        {name:'push.go'},
+        {name:'pull.go'},
+        {name:'models.go', mark:'added'},
+        {name:'conflict/', note:'HLC resolution, no Fuego'},
+        {name:'entity/', note:'registry + family routing'},
+        {name:'\u2026', note:'repo/, db/ \u2014 persistence, generated'}
+      ]},
+      {name:'catalog/', note:'3 files \u2014 routes.go added, catalog.go, data/ (unchanged)'},
+      {name:'attachment/', note:'2 files \u2014 routes.go added, handler.go kept whole (77 lines)'},
+      {name:'authz/', mark:'added', note:'Authorizer + Entitlement \u2014 lifted out of syncengine/repo'}
+    ]}
+  ]
+});
+
+/* 04 · boundary — today: in-process; and the future flow */
+renderContrast('#boundaryContrast', { cols: [
+  {eyebrow:'Today \u00b7 in-process', title:'Sync engine', body:'Forwards the raw entity and enforces the verdict it gets back.', points:['never resolves a resource','never knows a policy','owns sync shape only']},
+  {eyebrow:'Today \u00b7 in-process', title:'<code>internal/authz</code>', accent:true, body:'Maps entity \u2192 resource, evaluates the policy, returns a decision.', points:['Allow or Deny','backed by <code>seed/actors.json</code>, Phase 1'], foot:'the Authorizer interface \u2014 Cedar\u2019s future drop-in point'}
+]});
+
+var archFlow = renderFlow('#archFlow', {
+  ariaLabel: 'future deployment: peaky-api calls a separate Cedar authz service over an API',
+  caption: '<b>today</b>: one binary, an interface call \u00b7 <b>next</b>: two binaries, one HTTP call',
+  items: [
+    {type:'station', kind:'accent', label:'peaky-api', sub:'sync engine \u00b7 scales with sync traffic'},
+    {type:'gate', label:'POST /authorize', sub:'principal \u00b7 action \u00b7 resource \u00b7 context', outcomes:[{tone:'ok', text:'\u2713 Allow'}, {tone:'bad', text:'\u2715 Deny'}]},
+    {type:'station', kind:'warn', label:'authz service \u00b7 Cedar', subs:['policy store \u2014 schema + policies','entity store \u2014 parents']}
+  ]
+});
+
+/* 05 · adding a sync entity — six fixed steps, worked example: template_comment */
+var entSteps = [
+  {
+    label: 'Goal',
+    title: 'Goal: make template comments sync',
+    body: 'A reviewer leaves a comment on a template. It must converge on every device, gated by who can view that template \u2014 over the <em>same</em> <code>POST /api/sync/push</code> and <code>GET /api/sync/pull</code>, no new endpoint. Work backwards: three things must become true \u2014 the comment is <b>accepted</b>, <b>authorized</b>, and <b>audible</b>.',
+    code: { filename: 'work backwards: what must become true', html: escHtml(
+`device A \u2500\u2500comment\u2500\u2500\u25b6 POST /api/sync/push   { entityType: "template_comment", \u2026 }
+                          \u2502
+                          \u251c\u2500 1 \u00b7 accepted?    is it a known type?
+                          \u251c\u2500 2 \u00b7 authorized?  may the actor view the template?
+                          \u2514\u2500 3 \u00b7 audible?     does its family channel fire?
+                          \u2502
+device B \u25c0\u2500\u2500pull\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 converges`) }
+  },
+  {
+    label: 'Register',
+    title: 'Make it a known type',
+    body: 'Adding <code>template_comment</code> to the registry flips push from rejecting it (<code>invalid_entity_type</code>) to accepting it \u2014 just a type name in the known list. No route, no handler change, no push/pull edit: the protocol is entity-generic.',
+    code: { filename: 'syncengine/entity/registry.go', html: highlightGo(
+`func DefaultRegistry() Registry {
+	known := []Type{
+		Review, ReviewAnswer, ReviewNote, // \u2026the review family\u2026
+		Template, TemplateDraft, TemplateDraftPillar, TemplateDraftQuestion,
+		TemplateComment, // \u2190 the type you add
+	}
+	pullRoots := []Type{Review}
+	return newRegistry(known, pullRoots)
+}`) }
+  },
+  {
+    label: 'Authorize',
+    title: 'Grant access \u2014 config, not Go',
+    body: 'Registering a type does not let anyone touch it. The sync engine forwards the raw entity and the <b>authz boundary decides</b>, so granting access is <button class="term" data-term="entitlement">entitlement</button> config, not sync-engine code.',
+    code: { filename: 'seed/actors.json \u2014 the whole change, today', html: escHtml(
+`"entitlements": {
+	"template:*": { "canView": true, "canEdit": true }
+}`) }
+  },
+  {
+    label: 'Family',
+    title: 'One switch case makes it audible',
+    body: 'Fan-out does not resolve an <em>object</em> \u2014 it maps a type to one of three <button class="term" data-term="family">families</button>: <code>review</code>, <code>product</code>, <code>template</code>. A template\u2019s children ride the template family.',
+    code: { filename: 'syncengine/entity/channel.go', html: highlightGo(
+`func Family(t Type) (family string, ok bool) {
+	switch t {
+	case Review, ReviewCheckpoint, ReviewAnswer, ReviewNote, ReviewAttachment:
+		return "review", true
+	case Product:
+		return "product", true
+	case Template, TemplateDraft, TemplateDraftPillar, TemplateDraftQuestion,
+		TemplateComment: // \u2190 the case you extend
+		return "template", true
+	default:
+		return "", false
+	}
+}`) }
+  },
+  {
+    label: 'Fan out',
+    title: 'Push notifies a family, not an object',
+    body: 'A comment is one of potentially many changes in a push batch. The handler collects every distinct family touched and notifies each once \u2014 the family channel is the doorbell, not an authorization boundary. Each client re-pulls under its own entitlement scope.',
+    code: { filename: 'push.go \u2192 peaky-sse, one channel per family', html: escHtml(
+`push accepts the batch \u2500\u2500\u25b6 notifyFamilies["template"] = true
+                                  \u2502
+                                  \u25bc
+            pg_notify( sync:template:catalog, {cursor, family} )
+                                  \u2502
+                                  \u25bc
+             peaky-sse \u2500\u2500\u25b6 every client subscribed to "template"
+                                  \u2502
+                                  \u25bc
+        each client runs its own GET /api/sync/pull (entitlement-scoped)`) }
+  },
+  {
+    label: 'Mental model',
+    title: 'The mental model',
+    body: 'The protocol does not change \u2014 push, pull, and SSE stay the same. Adding an entity means answering three questions, in three fixed places, every time.',
+    code: { filename: 'the three checkpoints, applied to three entities', html: escHtml(
+`any entity \u2500\u2500\u25b6 1 \u00b7 known type?       sync registry
+              2 \u00b7 who may edit it?  authz boundary
+              3 \u00b7 which family?     entity.Family
+
+review             \u00b7 pull root \u00b7 edited by the review itself \u00b7 family review
+template_comment    \u00b7            \u00b7 edited via its template    \u00b7 family template
+product             \u00b7            \u00b7 edited by itself          \u00b7 family product`) }
+  }
+];
+var entStepperApi = renderStepper('#entStepper', { steps: entSteps });
+
+/* 06 · wiring lean binaries — three steps */
+var binSteps = [
+  {
+    label: 'Imports',
+    title: 'package main imports what it needs',
+    body: 'Go compiles only what <code>main</code> imports \u2014 the import list of a binary <em>is</em> its contents. <code>peaky-sse</code> imports <code>sse</code>, <code>authz</code>, and <code>middleware</code>, nothing else, so catalog, events, and sync code never enter it.',
+    code: { filename: 'cmd/peaky-sse/main.go', html: highlightGo(
+`import (
+	".../internal/sse"          // the one feature it serves
+	".../internal/authz"        // shared infra
+	".../internal/middleware"
+	// no catalog, events, or syncengine \u2014 so none of it is in this binary
+)`) }
+  },
+  {
+    label: 'Wire',
+    title: 'main wires the dependencies',
+    body: 'Each <code>main.go</code> is the one place dependencies are assembled: open the DB, load the actor registry, construct the handlers. Swap the registry for Cedar, or Postgres for a fake, and only <code>main</code> changes.',
+    code: { filename: 'cmd/peaky-api/main.go \u2014 assemble once', html: highlightGo(
+`pool := app.OpenDB(ctx)
+actors := authz.LoadRegistry(actorsFile)
+
+syncHandlers := syncengine.
+	New(repo.New(pool), actors).
+	WithNotifier(notifier, subjects)`) }
+  },
+  {
+    label: 'Routes',
+    title: 'Each feature owns its routes',
+    body: 'Every feature exposes <code>RegisterRoutes</code> beside its handler, owning its own paths and Fuego options, while <code>main</code> just calls them. A central routes file would import every feature into <em>every</em> binary; per-feature registration is what keeps the three services independent, enforced by the compiler.',
+    code: { filename: 'cmd/peaky-api/main.go \u2014 each feature registers itself', html: highlightGo(
+`syncengine.RegisterRoutes(s, syncHandlers)
+events.RegisterRoutes(s, eventHandlers)
+catalog.RegisterRoutes(s, catalogHandlers)
+attachment.RegisterRoutes(s, attachmentHandlers)`) }
+  }
+];
+var binStepperApi = renderStepper('#binStepper', { steps: binSteps });
+
+/* A · guardrails: deterministic vs judged, and the three depguard rules */
+renderContrast('#guardContrast', { cols: [
+  {eyebrow:'Non-deterministic', title:'<code>rtf-go-reviewer</code>', body:'An LLM that reads every PR. Catches the judgment calls a linter cannot \u2014 a DTO in the wrong file, a route registered in <code>main</code>, an auth type defined in <code>repo</code>.'},
+  {eyebrow:'Deterministic', title:'<button class="term" data-term="depguard">depguard</button>', accent:true, body:'A golangci-lint linter that forbids imports by package + path.', points:['zero ambiguity \u2014 fails <code>make lint:go</code> and CI','no human in the loop'], foot:'three rules, enforced on every build'}
+]});
+
+renderBeforeAfter('#guardRules', {
+  aspectLabel: 'Rule', beforeLabel: '\u2715 blocked (make lint:go)', afterLabel: '\u2713 allowed',
+  rows: [
+    {aspect:'<b>domain-no-fuego</b><br><span style="font-weight:400;color:var(--text-dim);font-size:.85em">domain packages must stay <button class="term" data-term="fuego">Fuego</button>-free</span>', before:'<code>syncengine/conflict</code> imports <code>go-fuego/fuego</code>', after:'imports only <code>context</code> and <code>syncengine/repo</code> ports'},
+    {aspect:'<b>sse-binary-lean</b><br><span style="font-weight:400;color:var(--text-dim);font-size:.85em">peaky-sse serves only the SSE stream</span>', before:'<code>cmd/peaky-sse</code> imports <code>internal/catalog</code>', after:'imports only <code>internal/sse</code> (+ <code>authz</code>, <code>middleware</code>)'},
+    {aspect:'<b>ctl-binary-lean</b><br><span style="font-weight:400;color:var(--text-dim);font-size:.85em">peaky-ctl only runs migrate and seed</span>', before:'<code>cmd/peaky-ctl</code> imports <code>internal/syncengine</code>', after:'imports only <code>internal/app</code> and <code>internal/dbmigrate</code>'}
+  ]
+});
+
+/* ── Present mode: recompose, never a blind section-per-slide map ── */
+initPresent([
+  { pick: ['#top'] },
+  { pick: ['#problem'], steps: fragSteps('#problemLedger .kl-row') },
+  { pick: ['#rule'], steps: fragSteps('#ruleLedger .kl-row') },
+  { pick: ['#shape'], layout: 'wide' },
+  { pick: ['#boundary'] },
+  { pick: ['#cedar'], layout: 'diagram', steps: { count: archFlow.count, go: archFlow.go } },
+  { kicker: '05 \u00b7 Walkthrough', title: 'Adding a sync entity, step by step', pick: ['#entStepper'], steps: clickSteps('#entStepper .kst-dot'), minScale: 0.85 },
+  { kicker: '06 \u00b7 Wiring it up', title: 'Wiring features into lean binaries', pick: ['#binStepper'], steps: clickSteps('#binStepper .kst-dot'), minScale: 0.85 },
+  { pick: ['#guardrails'] },
+  { pick: ['#guardrules'], steps: fragSteps('#guardRules .kb-row') }
+]);
+</script>

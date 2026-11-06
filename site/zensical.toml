@@ -1,0 +1,154 @@
+# ============================================================================
+# Peaky Documentation Site Configuration
+# ============================================================================
+
+[project]
+
+site_name = "Peaky - Readiness Assessment"
+site_description = "Systematic approach to validating operational readiness before peak events and major releases"
+site_author = "Peaky Team"
+
+# Base path for docs subdirectory deployment
+site_url = "/docs/"
+
+copyright = """
+Copyright &copy; 2026 Peaky Team
+"""
+
+# Navigation structure
+nav = [
+  { "Home" = "index.md" },
+  { "User Guide" = [
+    { "Overview" = "user-guide/index.md" },
+    { "Product Changelog" = "product_changelog.md" },
+    { "Roadmap" = "roadmap.md" },
+    { "Assessor Quickstart" = "user-guide/assessor-quickstart.md" },
+    { "Product Tour" = "user-guide/product-tour.md" },
+    { "Working with Reviews" = "user-guide/reviews.md" },
+    { "Understanding Templates" = "user-guide/templates.md" },
+    { "Writing Great Templates" = "user-guide/authoring-templates.md" },
+    { "Power User Guide" = [
+      { "Overview" = "user-guide/power-user/index.md" },
+      { "Events & Audit Trail" = "user-guide/power-user/events.md" },
+      { "System Health" = "user-guide/power-user/system.md" },
+      { "Templates Advanced" = "user-guide/power-user/templates-advanced.md" },
+      { "Automation" = "user-guide/power-user/automation.md" },
+    ] },
+    { "Reference" = "user-guide/reference.md" },
+  ] },
+  { "Development" = [
+    { "Changelog" = "development/changelog.md" },
+    { "Overview" = "development/index.md" },
+    { "Setup" = "development/setup.md" },
+    { "Vue Conventions" = "development/vue.md" },
+    { "TypeScript Conventions" = "development/typescript.md" },
+    { "Visual Design" = "development/visual-design.md" },
+    { "Testing" = "development/testing.md" },
+    { "Explainers" = "development/explainers.md" },
+    { "Working with AI" = "development/ai.md" },
+    { "Decision Log" = "development/decisions.md" },
+    { "Threat Model" = "development/threat-model.md" },
+    { "Events Reference" = "development/events/index.md" },
+    { "Walkthroughs" = [
+      { "Local-First" = [
+        { "Overview" = "development/walkthroughs/local-first/index.md" },
+        { "Architecture" = "development/walkthroughs/local-first/architecture.md" },
+        { "Data Model" = "development/walkthroughs/local-first/data-model.md" },
+        { "API" = "development/walkthroughs/local-first/api.md" },
+        { "Authorization" = "development/walkthroughs/local-first/authorization.md" },
+        { "Security" = "development/walkthroughs/local-first/security.md" },
+        { "Auditing" = "development/walkthroughs/local-first/auditing.md" },
+        { "Failure Domains" = "development/walkthroughs/local-first/failure-domains.md" },
+        { "Upgrades" = "development/walkthroughs/local-first/upgrades.md" },
+        { "HLC — Hybrid Logical Clock" = "development/walkthroughs/local-first/hlc.md" },
+      ] },
+      { "Codebase" = [
+        { "Overview" = "development/walkthroughs/codebase/index.md" },
+        { "Architecture" = "development/walkthroughs/codebase/architecture.md" },
+        { "Domain" = "development/walkthroughs/codebase/domain.md" },
+        { "Authorization" = "development/walkthroughs/codebase/authorization.md" },
+        { "Events" = "development/walkthroughs/codebase/events.md" },
+        { "UI Layer" = "development/walkthroughs/codebase/ui.md" },
+        { "Contributing" = "development/walkthroughs/codebase/contributing.md" },
+      ] },
+      { "Product Features" = [
+        { "Overview" = "development/walkthroughs/product/index.md" },
+        { "Products" = "development/walkthroughs/product/products.md" },
+        { "Teams" = "development/walkthroughs/product/teams.md" },
+        { "Assessments" = "development/walkthroughs/product/assessments.md" },
+        { "Reviews" = "development/walkthroughs/product/reviews.md" },
+        { "Template Studio" = "development/walkthroughs/product/template-studio.md" },
+        { "Events" = "development/walkthroughs/product/events.md" },
+        { "System Health" = "development/walkthroughs/product/system-health.md" },
+      ] },
+      { "Formal Verification" = "development/walkthroughs/formal-verification.md" },
+    ] },
+  ] },
+]
+
+# Extra CSS for mermaid diagrams
+extra_css = ["stylesheets/mermaid.css", "stylesheets/docs.css"]
+extra_javascript = ["javascripts/mermaid.mjs"]
+
+[project.plugins.glightbox]
+auto = true
+auto_themed = true
+
+# ----------------------------------------------------------------------------
+# Theme Configuration
+# ----------------------------------------------------------------------------
+[project.theme]
+
+custom_dir = "overrides"
+language = "en"
+
+features = [
+  "announce.dismiss",
+  "content.code.annotate",
+  "content.code.copy",
+  "content.code.select",
+  "content.footnote.tooltips",
+  "content.tabs.link",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+]
+
+# ----------------------------------------------------------------------------
+# Color Palette - Peaky Branding (Indigo primary)
+# ----------------------------------------------------------------------------
+[[project.theme.palette]]
+scheme = "default"
+primary = "indigo"
+accent = "indigo"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "indigo"
+accent = "indigo"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+# ----------------------------------------------------------------------------
+# Icons
+# ----------------------------------------------------------------------------
+[project.theme.icon]
+logo = "lucide/clipboard-check"
+
+# ----------------------------------------------------------------------------
+# Social Links
+# ----------------------------------------------------------------------------
+#[[project.extra.social]]
+#icon = "fontawesome/brands/github"
+#link = "https://github.com/your-org/orr"

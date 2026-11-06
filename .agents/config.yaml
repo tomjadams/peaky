@@ -1,0 +1,9 @@
+apiVersion: agent-marketplace/v2
+materialization:
+  mode: file
+harnesses:
+  - factory
+registries:
+  - url: git@gitlab.is.adyen.com:containers/rtf/harness.git
+    ref: main
+    default: true

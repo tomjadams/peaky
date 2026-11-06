@@ -1,0 +1,5 @@
+{
+  // Keep the root project on Nuxt's generated aggregate config so dev tooling
+  // does not race individual .nuxt project references during regeneration.
+  "extends": "./.nuxt/tsconfig.json"
+}

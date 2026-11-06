@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/TemplateQuestionCreated.v1.json",
+  "title": "TemplateQuestionCreated.v1",
+  "description": "Emitted when a new question is added to a pillar within a template draft.",
+  "x-peaky-event": {
+    "type": "TemplateQuestionCreated.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "templateId": {
+      "type": "string",
+      "description": "ID of the template draft this item belongs to.",
+      "markdownDescription": "ID of the template draft this item belongs to."
+    },
+    "pillarSlug": {
+      "type": "string",
+      "description": "URL-safe slug of the pillar this item belongs to.",
+      "markdownDescription": "URL-safe slug of the pillar this item belongs to."
+    },
+    "questionId": {
+      "type": "string",
+      "description": "Unique identifier of the created question.",
+      "markdownDescription": "Unique identifier of the created question."
+    },
+    "questionText": {
+      "type": "string",
+      "description": "Display text of the created question.",
+      "markdownDescription": "Display text of the created question."
+    },
+    "questionType": {
+      "type": "string",
+      "description": "Type identifier for the question, e.g. 'single-select', 'free-text'.",
+      "markdownDescription": "Type identifier for the question, e.g. 'single-select', 'free-text'."
+    },
+    "position": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Zero-based position of the question within the pillar.",
+      "markdownDescription": "Zero-based position of the question within the pillar."
+    }
+  },
+  "required": [
+    "templateId",
+    "pillarSlug",
+    "questionId",
+    "questionText",
+    "questionType",
+    "position"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,111 @@
+# Peaky local development stack.
+#
+# Services:
+#   postgres — PostgreSQL 17, sync state store + LISTEN/NOTIFY pub-sub
+#   api      — Go sync engine (push/pull/bootstrap, catalog mirror, attachment auth)
+#   sse      — SSE fan-out service (PG LISTEN → browser EventStream)
+#   ctl      — Management CLI: migrate, seed  [profiles: tools]
+#   authz    — Cedar policy engine, Phase 3   [profiles: authz]  (stub)
+#
+# All Go services share services/Dockerfile — build with --target <name>.
+#
+# Usage:
+#   make watch               — postgres + api + sse, then Nuxt dev server
+#   make test:go:integration — postgres only, run Go integration tests
+
+# DSN is defined once here and aliased in each service environment block.
+# Credentials match the postgres service definition below (user: peaky, password: peaky).
+x-pg-dsn: &pg_dsn "postgres://peaky:peaky@postgres:5432/peaky?sslmode=disable"
+
+services:
+  postgres:
+    image: acr-main.is.adyen.com/containers/postgres17-o9-image@sha256:7273db3401d1c377e532282e37de620563c7b22d4272f48f00735696bcbceec0 # v2025.09
+    environment:
+      POSTGRES_DB: peaky
+      POSTGRES_USER: peaky
+      POSTGRES_PASSWORD: peaky
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432", "-U", "peaky", "-d", "peaky"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+
+  api:
+    build:
+      context: ./services
+      target: api
+    ports:
+      - "3001:8080"
+    environment:
+      PORT: "8080"
+      PG_DSN: *pg_dsn
+      ACTORS_FILE: "/seed/actors.json"
+      LOG_LEVEL: "info"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/peaky-api", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  sse:
+    build:
+      context: ./services
+      target: sse
+    ports:
+      - "3002:8081"
+    environment:
+      PORT: "8081"
+      PG_DSN: *pg_dsn
+      ACTORS_FILE: "/seed/actors.json"
+      LOG_LEVEL: "info"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/peaky-sse", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  ctl:
+    build:
+      context: ./services
+      target: ctl
+    environment:
+      PG_DSN: *pg_dsn
+      ALLOW_SEED: "true"
+      ACTORS_FILE: "/seed/actors.json"
+      LOG_LEVEL: "info"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: [tools]
+
+  # authz:
+  #   # Cedar policy engine — Phase 3; replaces the actors.json registry.
+  #   # build: { context: ./services, target: authz }
+  #   profiles: [authz]
+
+volumes:
+  postgres_data:
+
+# The internal postgres image's pg_hba.conf allows TCP connections from 10.0.0.0/8 only.
+# Pinning the Docker Compose network to a 10.x subnet ensures the api container's IP
+# falls in that range and is accepted by pg_hba.conf with sslmode=disable.
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.20.0.0/16
+# test

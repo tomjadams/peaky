@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/TemplateQuestionDeleted.v1.json",
+  "title": "TemplateQuestionDeleted.v1",
+  "description": "Emitted when a question is removed from a template pillar.",
+  "x-peaky-event": {
+    "type": "TemplateQuestionDeleted.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "templateId": {
+      "type": "string",
+      "description": "ID of the template draft this item belongs to.",
+      "markdownDescription": "ID of the template draft this item belongs to."
+    },
+    "pillarSlug": {
+      "type": "string",
+      "description": "URL-safe slug of the pillar this item belongs to.",
+      "markdownDescription": "URL-safe slug of the pillar this item belongs to."
+    },
+    "questionId": {
+      "type": "string",
+      "description": "Unique identifier of the deleted question.",
+      "markdownDescription": "Unique identifier of the deleted question."
+    }
+  },
+  "required": [
+    "templateId",
+    "pillarSlug",
+    "questionId"
+  ],
+  "additionalProperties": false
+}

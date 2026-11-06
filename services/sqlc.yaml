@@ -1,0 +1,22 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "internal/syncengine/repo/queries.sql"
+    schema: "schema.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/syncengine/db"
+        sql_package: "database/sql"
+        # Map JSONB → sql.NullString (nullable) / string (not null) so the
+        # generated query params and scan targets match the existing *string
+        # pattern used throughout the sync repo.
+        overrides:
+          - db_type: "jsonb"
+            nullable: true
+            go_type:
+              import: "database/sql"
+              type: "NullString"
+          - db_type: "jsonb"
+            nullable: false
+            go_type: "string"

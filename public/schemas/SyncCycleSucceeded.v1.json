@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/SyncCycleSucceeded.v1.json",
+  "title": "SyncCycleSucceeded.v1",
+  "description": "Emitted when the sync cycle completes successfully. Carries the eventsPushed/eventsPulled counts and durationMs that drive the /system Sync tile.",
+  "x-peaky-event": {
+    "type": "SyncCycleSucceeded.v1",
+    "sources": [
+      "peaky.system"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "cycleId": {
+      "type": "string",
+      "description": "Matches the cycleId on the corresponding SyncCycleStarted event.",
+      "markdownDescription": "Matches the cycleId on the corresponding SyncCycleStarted event."
+    },
+    "eventsPushed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Outbox items pushed in this cycle.",
+      "markdownDescription": "Outbox items pushed in this cycle."
+    },
+    "eventsPulled": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Events pulled from the server in this cycle. Always 0 until pull is implemented.",
+      "markdownDescription": "Events pulled from the server in this cycle. Always 0 until pull is implemented."
+    },
+    "durationMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Wall-clock duration of the cycle, in milliseconds.",
+      "markdownDescription": "Wall-clock duration of the cycle, in milliseconds."
+    }
+  },
+  "required": [
+    "cycleId",
+    "eventsPushed",
+    "eventsPulled",
+    "durationMs"
+  ],
+  "additionalProperties": false
+}

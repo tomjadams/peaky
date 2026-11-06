@@ -1,0 +1,79 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>nuxt/renovate-config-nuxt"
+  ],
+  "enabledManagers": [
+    "npm",
+    "gomod",
+    "dockerfile",
+    "docker-compose",
+    "gitlabci"
+  ],
+  "schedule": [
+    "before 6am on Monday"
+  ],
+  "reviewers": [
+    "heitorl"
+  ],
+  "lockFileMaintenance": {
+    "enabled": false
+  },
+  "packageRules": [
+    {
+      "matchDepTypes": [
+        "resolutions"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Keep Nuxt packages compatible",
+      "matchPackageNames": [
+        "nuxt",
+        "/^@nuxt\\//"
+      ],
+      "groupName": "Nuxt dependencies"
+    },
+    {
+      "description": "Keep Vitest packages compatible",
+      "matchPackageNames": [
+        "vitest",
+        "/^@vitest\\//"
+      ],
+      "groupName": "Vitest dependencies"
+    },
+    {
+      "description": "Update Go modules together",
+      "matchManagers": [
+        "gomod"
+      ],
+      "groupName": "Go dependencies"
+    },
+    {
+      "description": "Update Docker images together",
+      "matchManagers": [
+        "dockerfile",
+        "docker-compose",
+        "gitlabci"
+      ],
+      "groupName": "container images"
+    },
+    {
+      "description": "Automerge non-critical development dependency updates after CI passes",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "automerge": true
+    }
+  ],
+  "postUpdateOptions": [
+    "pnpmDedupe"
+  ]
+}

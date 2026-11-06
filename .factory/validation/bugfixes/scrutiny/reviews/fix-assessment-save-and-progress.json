@@ -1,0 +1,63 @@
+{
+  "featureId": "fix-assessment-save-and-progress",
+  "reviewedAt": "2026-03-06T13:15:00.000Z",
+  "commitId": "180bc69",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "All three bugs (A, B, C) are properly addressed. Bug A: both assessment.vue pages now batch-save local answers via POST /api/reviews/:id/answers and call mutateSaveProgress per pillar before showing the toast. Bug B: useAssessment.ts computes overallProgress and answeredCount from the merged questions list (local answers) instead of static pillar metadata. Bug C: answers.post.ts recalculates pillar.answeredQuestions, pillar.totalQuestions, and pillar.progress from the full answers store after each save. Three new tests verify Bug C's server-side pillar stat recalculation. All 602 tests pass, typecheck clean, lint clean. The implementation is correct and meets all expectedBehavior items. Non-blocking issues noted below.",
+    "issues": [
+      {
+        "file": "app/pages/teams/[teamId]/reviews/[reviewId]/assessment.vue",
+        "line": 323,
+        "severity": "non_blocking",
+        "description": "No error handling in saveProgress: saveAnswer() returns false on failure (see useAssessmentMutate.ts), but the return value is ignored. The success toast ('Progress saved!') is shown even if all API calls fail. Should check return values and show an error toast on failure."
+      },
+      {
+        "file": "app/pages/applications/[appId]/reviews/[reviewId]/assessment.vue",
+        "line": 325,
+        "severity": "non_blocking",
+        "description": "Same error handling gap as the teams variant — saveAnswer() return value is ignored, success toast shown regardless of actual save outcome."
+      },
+      {
+        "file": "app/pages/teams/[teamId]/reviews/[reviewId]/assessment.vue",
+        "line": 328,
+        "severity": "non_blocking",
+        "description": "Sequential awaits in loops: each answer is saved one-at-a-time with 'await saveAnswer()' in a for-loop, then each pillar progress is saved sequentially. For reviews with many answers, this creates N+M sequential HTTP requests. Could use Promise.all for better UX performance."
+      },
+      {
+        "file": "app/pages/teams/[teamId]/reviews/[reviewId]/assessment.vue",
+        "line": 337,
+        "severity": "non_blocking",
+        "description": "Redundant pillar progress save: the loop calls mutateSaveProgress (PUT /api/reviews/:id/pillars/:slug/progress) for each pillar, but Bug C's fix in answers.post.ts already recalculates and persists pillar stats after each answer save. The PUT progress calls are now unnecessary and duplicate the server-side logic."
+      },
+      {
+        "file": "app/assessment/useAssessmentProgress.ts",
+        "line": 33,
+        "severity": "non_blocking",
+        "description": "getAnsweredCount still reads from static pillar.answeredQuestions — the feature description explicitly says to fix this function, but the implementation bypasses it in useAssessment.ts instead of fixing the source. The function is now effectively dead code for progress calculation (not called in production) but remains misleading as a public API."
+      },
+      {
+        "file": "app/assessment/useAssessment.ts",
+        "line": 206,
+        "severity": "non_blocking",
+        "description": "isComplete() still delegates to progress.isComplete(pillars.value) which reads pillar.progress from the server's initial data. During a session, answering all questions won't make isComplete() return true until the review data is refetched from the server. This is inconsistent with overallProgress which now updates in real-time from local answers."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Both assessment.vue saveProgress functions ignore the boolean return value from saveAnswer() (which returns false on API error) and always show a success toast. There's no documented convention in AGENTS.md for frontend error handling patterns when calling API composables.",
+      "evidence": "app/pages/teams/[teamId]/reviews/[reviewId]/assessment.vue:328 — 'await saveAnswer(questionId, answer)' return value discarded. useAssessmentMutate.ts:23 returns false on catch."
+    },
+    {
+      "area": "skills",
+      "observation": "Worker session 02e1f569 was a continuation that committed already-implemented changes from session 09db9771. The backend-worker skill step 3 (RED phase) assumes writing new failing tests first, but when picking up uncommitted work from a prior session, the tests already pass. The worker noted this in skillFeedback.suggestedChanges — the skill could document this 'continuation' scenario.",
+      "evidence": "Handoff from 02e1f569: skillFeedback.suggestedChanges includes 'The backend-worker skill step 3 (RED phase) assumes writing new tests that fail first, but when picking up uncommitted work from a previous worker, the tests already pass.'"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. All three bugs are correctly fixed: Save button now calls the API (Bug A), progress is computed from actual local answers (Bug B), and server-side pillar stats are recalculated on each answer save (Bug C). Three new tests cover Bug C's server-side logic. All validators pass (602 tests, clean typecheck, clean lint). Six non-blocking issues noted: missing error handling in saveProgress (success toast shown on failure), sequential awaits in loops (performance), redundant client-side pillar progress saves (server already handles this via Bug C), getAnsweredCount in useAssessmentProgress.ts still reads static data (bypassed rather than fixed), and isComplete() inconsistency with real-time progress."
+}

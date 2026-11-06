@@ -1,0 +1,184 @@
+{
+  "version": "handoff-limits/v1",
+  "description": "Versioned HandoffLimits boundary vectors (improvement-plans/REQ-011; AC-039 through AC-043; local-first/REQ-013; AC-021 through AC-023). Consumed by one table-driven test per runtime — TypeScript (tests/unit/services/handoff/limits.test.ts) now, Go in group 6.6. Every text limit counts Unicode code points, never encoded bytes.",
+  "limits": {
+    "rationaleChars": 2000,
+    "identifierChars": 128,
+    "urlChars": 2048,
+    "helpfulLinksPerPractice": 10,
+    "evidenceIdentifiersPerPractice": 20,
+    "practicesPerHandoff": 50
+  },
+  "pushContract": {
+    "maxEventsPerPush": 500,
+    "maxFieldsPerEvent": 100,
+    "source": "services/internal/syncengine/push.go:27-28"
+  },
+  "vectors": [
+    {
+      "id": "rationale-at-limit",
+      "ac": ["AC-039"],
+      "kind": "text",
+      "field": "rationale",
+      "char": "a",
+      "length": 2000,
+      "expect": "accept"
+    },
+    {
+      "id": "rationale-over-limit",
+      "ac": ["AC-039"],
+      "kind": "text",
+      "field": "rationale",
+      "char": "a",
+      "length": 2001,
+      "expect": "reject"
+    },
+    {
+      "id": "rationale-multibyte-at-limit",
+      "ac": ["AC-040"],
+      "kind": "text",
+      "field": "rationale",
+      "char": "🚀",
+      "length": 2000,
+      "expect": "accept",
+      "note": "2000 code points, 4000 UTF-16 units, 8000 UTF-8 bytes — accepted because limits count characters, never bytes"
+    },
+    {
+      "id": "identifier-at-limit",
+      "ac": ["AC-039"],
+      "kind": "text",
+      "field": "externalId",
+      "char": "x",
+      "length": 128,
+      "expect": "accept"
+    },
+    {
+      "id": "identifier-over-limit",
+      "ac": ["AC-039"],
+      "kind": "text",
+      "field": "externalId",
+      "char": "x",
+      "length": 129,
+      "expect": "reject"
+    },
+    {
+      "id": "evidence-identifier-at-limit",
+      "ac": ["AC-039"],
+      "kind": "text",
+      "field": "evidenceIdentifiers[0]",
+      "char": "e",
+      "length": 128,
+      "expect": "accept"
+    },
+    {
+      "id": "evidence-identifier-over-limit",
+      "ac": ["AC-039"],
+      "kind": "text",
+      "field": "evidenceIdentifiers[0]",
+      "char": "e",
+      "length": 129,
+      "expect": "reject"
+    },
+    {
+      "id": "url-at-limit",
+      "ac": ["AC-039"],
+      "kind": "url",
+      "field": "url",
+      "length": 2048,
+      "expect": "accept"
+    },
+    {
+      "id": "url-over-limit",
+      "ac": ["AC-039"],
+      "kind": "url",
+      "field": "url",
+      "length": 2049,
+      "expect": "reject"
+    },
+    {
+      "id": "url-non-https",
+      "ac": ["AC-039"],
+      "kind": "url-explicit",
+      "field": "url",
+      "value": "http://example.com/ticket/1",
+      "expect": "reject",
+      "note": "Only https URLs are accepted, regardless of length"
+    },
+    {
+      "id": "url-javascript-scheme",
+      "ac": ["AC-039"],
+      "kind": "url-explicit",
+      "field": "url",
+      "value": "javascript:alert(1)",
+      "expect": "reject",
+      "note": "Script-capable schemes are rejected regardless of length"
+    },
+    {
+      "id": "url-protocol-relative",
+      "ac": ["AC-039"],
+      "kind": "url-explicit",
+      "field": "url",
+      "value": "//example.com/ticket/1",
+      "expect": "reject",
+      "note": "Protocol-relative URLs carry no explicit https scheme and are rejected"
+    },
+    {
+      "id": "helpful-links-at-limit",
+      "ac": ["AC-041"],
+      "kind": "collection",
+      "field": "helpfulLinks",
+      "count": 10,
+      "expect": "accept"
+    },
+    {
+      "id": "helpful-links-over-limit",
+      "ac": ["AC-041"],
+      "kind": "collection",
+      "field": "helpfulLinks",
+      "count": 11,
+      "expect": "reject"
+    },
+    {
+      "id": "evidence-identifiers-at-limit",
+      "ac": ["AC-041"],
+      "kind": "collection",
+      "field": "evidenceIdentifiers",
+      "count": 20,
+      "expect": "accept"
+    },
+    {
+      "id": "evidence-identifiers-over-limit",
+      "ac": ["AC-041"],
+      "kind": "collection",
+      "field": "evidenceIdentifiers",
+      "count": 21,
+      "expect": "reject"
+    },
+    {
+      "id": "practices-at-limit",
+      "ac": ["AC-042"],
+      "kind": "practice-count",
+      "field": "practices",
+      "count": 50,
+      "expect": "accept"
+    },
+    {
+      "id": "practices-over-limit",
+      "ac": ["AC-042"],
+      "kind": "practice-count",
+      "field": "practices",
+      "count": 51,
+      "expect": "reject"
+    }
+  ],
+  "limitMaximalDraft": {
+    "ac": ["AC-043", "local-first/AC-021", "local-first/AC-022", "local-first/AC-023"],
+    "practiceCount": 50,
+    "rationaleChars": 2000,
+    "helpfulLinksPerPractice": 10,
+    "evidenceIdentifiersPerPractice": 20,
+    "urlChars": 2048,
+    "identifierChars": 128,
+    "note": "A draft at every limit synchronizes as 50 practice upsert events plus 50 association events = 100 events, under the 500-event push cap; each serialized row carries well under the 100-field event cap."
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "flowId": "progress-and-cross",
+  "testedAt": "2026-03-06T10:20:40.000Z",
+  "credentials": {
+    "account": "curl-api",
+    "namespace": "assessment-progress-and-cross"
+  },
+  "toolsUsed": ["curl"],
+  "assertions": {
+    "VAL-ASM-005": {
+      "status": "pass",
+      "title": "Pillar progress saves via explicit save action",
+      "steps": [
+        {
+          "action": "PUT /api/reviews/review-008/pillars/security/progress with {\"progress\": 50, \"answeredQuestions\": 1, \"totalQuestions\": 2}",
+          "expected": "200 with {success: true}",
+          "observed": "200 with {\"success\": true}"
+        },
+        {
+          "action": "GET /api/reviews/review-008 and check security pillar progress",
+          "expected": "security pillar progress = 50, answeredQuestions = 1, totalQuestions = 2",
+          "observed": "security pillar progress = 50, answeredQuestions = 1, totalQuestions = 2"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (API-only test)",
+        "network": "PUT /api/reviews/review-008/pillars/security/progress -> 200, GET /api/reviews/review-008 -> 200 (progress confirmed at 50)"
+      },
+      "issues": null
+    },
+    "VAL-CROSS-001": {
+      "status": "pass",
+      "title": "Create review then assess — full persistence flow",
+      "steps": [
+        {
+          "action": "POST /api/teams/team-reporting/reviews with {\"name\": \"Cross Test Review 1\", \"templateIds\": [\"template-003\"]}",
+          "expected": "201 with new review object",
+          "observed": "201 with review id review-164936, name 'Cross Test Review 1', 4 questions from GDPR Audit template"
+        },
+        {
+          "action": "GET /api/reviews/review-164936/questions",
+          "expected": "4 questions from template-003 with null answers",
+          "observed": "4 questions returned: q-gdpr-sec-001, q-gdpr-sec-002, q-gdpr-ops-001, q-gdpr-ops-002, all with answer: null"
+        },
+        {
+          "action": "POST /api/reviews/review-164936/answers with {\"questionId\": \"q-gdpr-sec-001\", \"answer\": \"yes\"}",
+          "expected": "200 with {success: true}",
+          "observed": "200 with {\"success\": true}"
+        },
+        {
+          "action": "GET /api/reviews/review-164936/questions and check q-gdpr-sec-001 answer",
+          "expected": "q-gdpr-sec-001 answer = 'yes' (persisted)",
+          "observed": "q-gdpr-sec-001 answer = 'yes' (confirmed persisted)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (API-only test)",
+        "network": "POST /api/teams/team-reporting/reviews -> 201, GET /api/reviews/review-164936/questions -> 200 (4 questions), POST /api/reviews/review-164936/answers -> 200, GET /api/reviews/review-164936/questions -> 200 (answer persisted)"
+      },
+      "issues": null
+    },
+    "VAL-CROSS-002": {
+      "status": "pass",
+      "title": "Template changes reflected in new reviews",
+      "steps": [
+        {
+          "action": "GET /api/templates/template-002 to verify current state",
+          "expected": "template-002 returned with status 'draft'",
+          "observed": "template-002 (PCI-DSS) returned with status 'draft', 3 pillars, 4 questions"
+        },
+        {
+          "action": "POST /api/templates/template-002/publish to activate it",
+          "expected": "200 with success: true, status changed to 'active'",
+          "observed": "200 with {\"success\": true}, template status = 'active', publishedAt set"
+        },
+        {
+          "action": "POST /api/teams/team-reporting/reviews with {\"name\": \"Cross Test Review 2\", \"templateIds\": [\"template-002\"]}",
+          "expected": "201 with new review using template-002 questions",
+          "observed": "201 with review id review-40876, name 'Cross Test Review 2', 3 pillars (security, infrastructure, operations)"
+        },
+        {
+          "action": "GET /api/reviews/review-40876/questions to verify template questions are present",
+          "expected": "4 questions matching template-002: q-pci-sec-001, q-pci-sec-002, q-pci-inf-001, q-pci-ops-001",
+          "observed": "4 questions returned matching exactly: q-pci-sec-001, q-pci-sec-002, q-pci-inf-001, q-pci-ops-001"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (API-only test)",
+        "network": "GET /api/templates/template-002 -> 200 (draft), POST /api/templates/template-002/publish -> 200 (now active), POST /api/teams/team-reporting/reviews -> 201, GET /api/reviews/review-40876/questions -> 200 (4 questions match template)"
+      },
+      "issues": null
+    }
+  },
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 3 assertions: 3 passed, 0 failed. VAL-ASM-005 confirmed pillar progress persists via PUT endpoint. VAL-CROSS-001 confirmed full create-review-then-answer flow with persistence. VAL-CROSS-002 confirmed publishing a draft template and creating a review reflects the template's questions."
+}

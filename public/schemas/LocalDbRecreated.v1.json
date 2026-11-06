@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/LocalDbRecreated.v1.json",
+  "title": "LocalDbRecreated.v1",
+  "description": "Emitted on the first ready signal after a user-triggered recreate-DB reload. Used by the /system Maintenance card to display 'Last recreated: …'.",
+  "x-peaky-event": {
+    "type": "LocalDbRecreated.v1",
+    "sources": [
+      "peaky.system"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "triggeredBy": {
+      "type": "string",
+      "enum": [
+        "user"
+      ],
+      "description": "Origin of the recreate. Currently always 'user' via the /system action.",
+      "markdownDescription": "Origin of the recreate. Currently always 'user' via the /system action."
+    }
+  },
+  "required": [
+    "triggeredBy"
+  ],
+  "additionalProperties": false
+}

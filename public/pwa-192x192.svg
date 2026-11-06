@@ -1,0 +1,20 @@
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="peakyGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="38" fill="#0f172a"/>
+  <!-- Journey line - shifted right and down -->
+  <path d="M48 100 L68 80 L93 87 L118 60 L138 42" stroke="url(#peakyGradient)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Nodes -->
+  <circle cx="48" cy="100" r="7" fill="#0f172a" stroke="url(#peakyGradient)" stroke-width="4"/>
+  <circle cx="68" cy="80" r="7" fill="#0f172a" stroke="url(#peakyGradient)" stroke-width="4"/>
+  <circle cx="93" cy="87" r="7" fill="#0f172a" stroke="url(#peakyGradient)" stroke-width="4"/>
+  <circle cx="118" cy="60" r="7" fill="#0f172a" stroke="url(#peakyGradient)" stroke-width="4"/>
+  <!-- Star at peak - moved down a bit -->
+  <path d="M138 25 L140 33 L148 35 L140 37 L138 45 L136 37 L128 35 L136 33 Z" fill="#22c55e"/>
+  <!-- Peaky text -->
+  <text x="96" y="150" font-family="system-ui, -apple-system, sans-serif" font-size="36" font-weight="700" fill="url(#peakyGradient)" text-anchor="middle">Peaky</text>
+</svg>

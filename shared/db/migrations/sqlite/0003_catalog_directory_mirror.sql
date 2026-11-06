@@ -1,0 +1,1 @@
+ALTER TABLE reference_snapshot_meta RENAME TO catalog_directory_mirror_meta;

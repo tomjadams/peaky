@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/ProductCreated.v1.json",
+  "title": "ProductCreated.v1",
+  "description": "Emitted when a new product is created via the product wizard, including its initial team and application assignments.",
+  "x-peaky-event": {
+    "type": "ProductCreated.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Display name of the newly created product.",
+      "markdownDescription": "Display name of the newly created product."
+    },
+    "teamIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs of the teams assigned to this product at creation time.",
+      "markdownDescription": "IDs of the teams assigned to this product at creation time."
+    },
+    "componentIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs of the application components linked to this product at creation time.",
+      "markdownDescription": "IDs of the application components linked to this product at creation time."
+    },
+    "origin": {
+      "type": "string",
+      "enum": [
+        "bespoke",
+        "open-source",
+        "vendor"
+      ],
+      "description": "How the product was built: 'bespoke' (internally built), 'open-source', or 'vendor' (third-party).",
+      "markdownDescription": "How the product was built: 'bespoke' (internally built), 'open-source', or 'vendor' (third-party)."
+    },
+    "isExternal": {
+      "type": "boolean",
+      "description": "Whether this product is externally owned or managed.",
+      "markdownDescription": "Whether this product is externally owned or managed."
+    },
+    "productManagerId": {
+      "type": "string",
+      "description": "User ID of the assigned product manager.",
+      "markdownDescription": "User ID of the assigned product manager."
+    },
+    "engineeringLeadId": {
+      "type": "string",
+      "description": "User ID of the assigned engineering lead.",
+      "markdownDescription": "User ID of the assigned engineering lead."
+    },
+    "roadmapUrl": {
+      "type": "string",
+      "description": "URL to the product roadmap.",
+      "markdownDescription": "URL to the product roadmap."
+    },
+    "documentationUrl": {
+      "type": "string",
+      "description": "URL to product documentation.",
+      "markdownDescription": "URL to product documentation."
+    },
+    "supportChannel": {
+      "type": "string",
+      "description": "Support channel identifier, e.g. a Slack channel name.",
+      "markdownDescription": "Support channel identifier, e.g. a Slack channel name."
+    }
+  },
+  "required": [
+    "name",
+    "teamIds",
+    "componentIds",
+    "origin",
+    "isExternal"
+  ],
+  "additionalProperties": false
+}

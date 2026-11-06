@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/TemplatePillarDeleted.v1.json",
+  "title": "TemplatePillarDeleted.v1",
+  "description": "Emitted when a pillar is removed from a template draft.",
+  "x-peaky-event": {
+    "type": "TemplatePillarDeleted.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "templateId": {
+      "type": "string",
+      "description": "ID of the template draft this item belongs to.",
+      "markdownDescription": "ID of the template draft this item belongs to."
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name of the pillar at the time it was deleted.",
+      "markdownDescription": "Display name of the pillar at the time it was deleted."
+    }
+  },
+  "required": [
+    "templateId",
+    "name"
+  ],
+  "additionalProperties": false
+}

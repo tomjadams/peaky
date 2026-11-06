@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/ReviewNoteRecorded.v1.json",
+  "title": "ReviewNoteRecorded.v1",
+  "description": "Emitted when a free-text note is created or updated for a question, pillar, or review scope. Note content is subject to GDPR erasure.",
+  "x-peaky-event": {
+    "type": "ReviewNoteRecorded.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "scopeType": {
+      "type": "string",
+      "enum": [
+        "question",
+        "pillar",
+        "review"
+      ],
+      "description": "The scope context for this resource (e.g. 'question', 'pillar', 'review').",
+      "markdownDescription": "The scope context for this resource (e.g. 'question', 'pillar', 'review')."
+    },
+    "scopeId": {
+      "type": "string",
+      "description": "ID of the scoped resource this item is attached to.",
+      "markdownDescription": "ID of the scoped resource this item is attached to."
+    },
+    "content": {
+      "type": "string",
+      "description": "Full note content (free-text, may contain PII — subject to GDPR erasure).",
+      "markdownDescription": "Full note content (free-text, may contain PII — subject to GDPR erasure)."
+    }
+  },
+  "required": [
+    "scopeType",
+    "scopeId",
+    "content"
+  ],
+  "additionalProperties": false
+}

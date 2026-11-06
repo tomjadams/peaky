@@ -1,0 +1,51 @@
+{
+  "milestone": "bugfixes",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": { "passed": true, "command": "pnpm test:run --reporter=verbose", "exitCode": 0 },
+    "typecheck": { "passed": true, "command": "pnpm typecheck", "exitCode": 0 },
+    "lint": { "passed": true, "command": "pnpm lint", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: when calling API composables that return boolean success/failure (e.g., saveAnswer() returning false on error), always check the return value and show appropriate error feedback. Never show a success toast unconditionally after an API call that may have failed.",
+      "evidence": "Both assessment.vue pages (teams and applications paths) ignore the boolean return value from saveAnswer() and always show 'Progress saved!' toast even on failure. useAssessmentMutate.ts:23 returns false on catch.",
+      "isSystemic": false
+    },
+    {
+      "target": "skills",
+      "suggestion": "Add a 'continuation' scenario to the backend-worker skill: when picking up uncommitted work from a prior worker session, the RED phase (write failing tests first) may not apply because tests already pass. The worker should verify existing tests pass, then proceed to commit. Document this as a valid workflow alternative to the standard RED/GREEN/REFACTOR cycle.",
+      "evidence": "Worker session 02e1f569 (fix-assessment-save-and-progress) was a continuation of session 09db9771. Worker noted in skillFeedback.suggestedChanges that the TDD cycle doesn't apply when picking up existing uncommitted work.",
+      "isSystemic": false
+    },
+    {
+      "target": "skills",
+      "suggestion": "Consider creating a frontend-worker skill (or expanding backend-worker routing guidance) for pure Vue component fixes. The backend-worker procedure (curl endpoints, test API routes, manual HTTP verification) doesn't apply to frontend-only computed property changes. Alternatively, add orchestrator guidance to route frontend-only features to a different skill.",
+      "evidence": "Feature fix-phantom-template-in-sidebar was assigned backend-worker skill but only modified app/components/TemplateSelectorSidebar.vue (a Vue computed property). Worker flagged skill mismatch in handoff.",
+      "isSystemic": false
+    },
+    {
+      "target": "skills",
+      "suggestion": "Reinforce lint step compliance in backend-worker skill. Workers should not skip 'pnpm lint' even for seemingly minor changes.",
+      "evidence": "Worker for fix-phantom-template-in-sidebar skipped pnpm lint (only ran test:run and typecheck). Backend-worker skill step 5 explicitly requires lint.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "statusBadgeClass function in TemplateSelectorSidebar.vue only handles ACTIVE/DRAFT/REVIEW but ReviewStatus includes in-progress/completed/archived",
+      "reason": "Pre-existing display bug that predates the bugfixes milestone. Not caused by any feature in this milestone and not within scope to fix here. Noted as a discovered issue for future work."
+    }
+  ],
+  "previousRound": null
+}

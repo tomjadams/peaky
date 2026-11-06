@@ -1,0 +1,57 @@
+{
+  "featureId": "assessment-answer-persistence",
+  "reviewedAt": "2026-03-06T10:30:00.000Z",
+  "commitId": "9d688a0",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid implementation of in-memory answer and progress persistence. The store module (server/data/answers.ts) cleanly exports typed CRUD functions for both answers and progress. The POST /api/reviews/:id/answers endpoint properly validates input (reviewId, questionId, answer shape) and persists all QuestionAnswer variants (yes/no/na/string[]/ChecklistAnswerWithNA). The PUT progress endpoint validates and persists progress data while also updating the review's pillar object for consistency. Both GET endpoints (questions list and individual question) correctly merge saved answers using spread + nullish coalescing. 23 new tests cover success paths, error paths, all answer types, cross-request persistence, and answer overwriting. Frontend alignment is correct: useAssessmentMutate sends { questionId, answer } which matches the endpoint's required fields, and useAssessmentFetch receives QuestionsResponse which matches the endpoint's return shape.",
+    "issues": [
+      {
+        "file": "server/data/answers.ts",
+        "line": 53,
+        "severity": "non_blocking",
+        "description": "getProgress() is exported but never consumed by any API route or test. The progress PUT handler stores data in progressStore via setProgress(), but progress is always read from the review object itself (which is also updated in the PUT handler). This makes progressStore effectively write-only dead storage. Consider either removing getProgress/progressStore or wiring a GET endpoint to read from it."
+      },
+      {
+        "file": "server/data/answers.ts",
+        "line": 48,
+        "severity": "non_blocking",
+        "description": "clearAnswers() clears both answersStore and progressStore, but the function name only implies answer clearing. Consider renaming to clearAllStores() or clearAnswersAndProgress() for clarity, or splitting into two functions."
+      },
+      {
+        "file": "server/data/answers.ts",
+        "line": 13,
+        "severity": "non_blocking",
+        "description": "Uses 'let' for answersStore and progressStore instead of 'const', which differs from the existing pattern in pillar-notes.ts (const pillarNotesStore). The 'let' approach is used to enable reassignment in clearAnswers(), which is a reasonable trade-off for test cleanup ergonomics, but deviates from the documented mutable-object pattern."
+      },
+      {
+        "file": "server/api/reviews/[id]/answers.post.ts",
+        "line": 43,
+        "severity": "non_blocking",
+        "description": "Answer validation uses manual if-checks rather than Zod schema validation. AGENTS.md says 'Manual if-checks are acceptable for simple bulk endpoints with basic field validation' — this endpoint has moderate complexity in answer shape validation (5 valid shapes). A Zod discriminated union would be more robust and self-documenting, but the current approach is functional and consistent with other endpoints in the project."
+      },
+      {
+        "file": "tests/nuxt/api/answers-store.test.ts",
+        "line": 330,
+        "severity": "non_blocking",
+        "description": "PUT progress tests verify { success: true } return value but don't assert that progress data was actually stored via getProgress(). While the PUT handler does call setProgress(), there's no test that reads back the persisted progress to verify correctness. Adding a getProgress() assertion would strengthen these tests."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The answers store uses 'let' for module-level store variables to support reassignment in clearAnswers(), while the existing pillar-notes store uses 'const' objects with direct mutation. AGENTS.md says 'export a mutable data structure from server/data/' but doesn't specify const vs let. The 'let' pattern may proliferate — consider documenting which approach to use for stores that need test-time clearing.",
+      "evidence": "server/data/answers.ts:13 uses 'let answersStore', server/data/answers.ts:22 uses 'let progressStore'. Compare to server/data/pillar-notes.ts:12 which uses 'const pillarNotesStore'. The let approach exists solely to support clearAnswers() reassignment at line 48-51."
+    },
+    {
+      "area": "conventions",
+      "observation": "The endpoint accepts naReason and itemNAReasons fields in the POST body, but the frontend composable useAssessmentMutate.ts only sends { questionId, answer }. These extra fields are forward-compatible but currently unreachable through the standard frontend flow. This isn't a bug — the endpoint supports a superset of what the frontend sends — but it means the naReason persistence path is untestable through the real UI flow.",
+      "evidence": "server/api/reviews/[id]/answers.post.ts:62-68 handles naReason/itemNAReasons from body. app/assessment/useAssessmentMutate.ts:14-15 sends only { questionId, answer }."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Feature passes review. The implementation is clean, well-tested (23 new tests, all passing), follows project conventions, and correctly aligns with the frontend composables. All 10 expected behaviors from the feature spec are covered. The only notable gaps are: (1) getProgress() is exported but never consumed — progressStore is write-only dead storage since progress is read from the review object; (2) progress PUT tests don't assert stored data; (3) naReason/itemNAReasons fields are accepted by the endpoint but unreachable through the current frontend flow. None of these are blocking."
+}

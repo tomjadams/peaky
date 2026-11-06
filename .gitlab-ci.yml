@@ -1,0 +1,322 @@
+include:
+  # MR governance: size/title/auto-label/epic-traceability checks + JUnit
+  # report. Requires CI_AUTOMATION_TOKEN (api scope): set as a CI variable or
+  # fetched from Vault (0.0.3+). Job: ci-automation-mr.
+  - component: $CI_SERVER_FQDN/components/ci-automation/mr@0.0.4
+  # Working-tree tools: the scheduled changelog generator (job:
+  # ci-automation-changelog) and — once /merge-check v2 ships upstream — the
+  # attestation merge gate (commented out at 0.0.3, i.e. no job emitted yet,
+  # matching mr_override_merge_check.enabled: false in ci-automation.yaml).
+  - component: $CI_SERVER_FQDN/components/ci-automation/repo@0.0.4
+    inputs:
+      changelog_stage: quality
+  # No `image:` inputs: 0.0.4 defaults its jobs to the immutable, digest-pinned
+  # image of the matching release. Overriding with the mutable default tag is
+  # unsafe — runner caches (IfNotPresent) can serve a stale build.
+
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Scheduled pipelines (e.g. daily changelog generation)
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    # on: after merge or direct push
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    # Pushing to a branch with an open MR fires: branch pipeline, MR pipeline
+    # This rule helps prevent duplicates
+    # Cancel branch pipeline, leaving MR pipeline only:
+    #   git push → branch pipeline ✗ (cancelled here)
+    #           └→ MR pipeline     ✓ (matched by rule 1 above)
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    # Like a catch all in GitLab (e.g., pushing a brand new branch with no MR triggers it)
+    - if: $CI_COMMIT_BRANCH
+
+default:
+  image: acr-main.is.adyen.com/containers/golden-o9-nodejs24-ci:2026.20.11
+  interruptible: true
+  cache: &pnpm-cache
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  before_script:
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install
+
+stages:
+  # ci-automation-mr runs in the implicit .pre stage (early bail on MRs).
+  # ci-automation-changelog is overridden to quality so schedule-only
+  # pipelines contain a normal-stage job and GitLab creates them.
+  - quality
+
+# Rules anchors: jobs reuse these to only run when their code areas change.
+# .gitlab-ci.yml is included in every MR changes list so CI changes still validate.
+.default-quality-rules: &default-quality-rules
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    changes:
+      paths:
+        - app/**/*
+        - server/**/*
+        - site/**/*
+        - shared/**/*
+        - scripts/**/*.mjs
+        - tests/**/*
+        - .husky/**/*
+        - Makefile
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - nuxt.config.ts
+        - drizzle.config.ts
+        - eslint.config.mjs
+        - .oxlintrc.json
+        - .prettierignore
+        - .nuxtrc
+        - tsconfig.json
+        - vue.d.ts
+        - vitest.config.ts
+        - vitest.integration.config.ts
+        - vitest.threat-model-drift.config.ts
+        - playwright.config.ts
+        - .gitlab-ci.yml
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+.lint-docs-rules: &lint-docs-rules
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    changes:
+      paths:
+        - "**/*.md"
+        - .rumdl.toml
+        - .gitlab-ci.yml
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+.openspec-rules: &openspec-rules
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    changes:
+      paths: &openspec-paths
+        - openspec/**/*
+        - scripts/openspec-ids.ts
+        - tests/guards/openspec-id-allocation.test.ts
+        - lint-staged.config.mjs
+        - .husky/pre-commit
+        - Makefile
+        - package.json
+        - .gitlab-ci.yml
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    changes:
+      paths: *openspec-paths
+
+.go-test-rules: &go-test-rules
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    changes:
+      paths:
+        - services/**/*
+        - .gitlab-ci.yml
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+.threat-model-drift-rules: &threat-model-drift-rules
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    changes:
+      paths: &threat-model-drift-paths
+        - AGENTS.md
+        - SECURITY.md
+        - .husky/pre-commit
+        - .factory/**/*
+        - .agents/**/*
+        - services/**/*
+        - formal_verification/**/*
+        - explainers/**/*
+        - tests/guards/threat-model-drift.test.ts
+        - vitest.threat-model-drift.config.ts
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    changes:
+      paths: *threat-model-drift-paths
+
+lint:
+  stage: quality
+  rules: *default-quality-rules
+  script:
+    - make lint
+
+lint-docs:
+  stage: quality
+  rules: *lint-docs-rules
+  script:
+    - make lint-docs
+
+openspec-validate-ids:
+  stage: quality
+  rules: *openspec-rules
+  script:
+    - make openspec-validate
+
+test:
+  stage: quality
+  rules: *default-quality-rules
+  parallel: 4
+  cache:
+    <<: *pnpm-cache
+    policy: pull
+  script:
+    - mkdir -p test-results
+    - >-
+      make test TEST_ARGS="--maxWorkers=1
+      --shard=${CI_NODE_INDEX}/${CI_NODE_TOTAL}
+      --reporter=default
+      --reporter=junit
+      --outputFile.junit=test-results/vitest-${CI_NODE_INDEX}.xml"
+  artifacts:
+    when: always
+    name: "vitest-${CI_NODE_INDEX}"
+    expire_in: 1 week
+    paths:
+      - test-results/vitest-*.xml
+    reports:
+      junit: test-results/vitest-*.xml
+
+threat-model-drift:
+  stage: quality
+  rules: *threat-model-drift-rules
+  cache:
+    <<: *pnpm-cache
+    policy: pull
+  script:
+    - ./node_modules/.bin/vitest run --config vitest.threat-model-drift.config.ts
+
+typecheck:
+  stage: quality
+  rules: *default-quality-rules
+  script:
+    - make typecheck
+
+test-integration:
+  stage: quality
+  rules: *default-quality-rules
+  script:
+    - make test:integration
+
+# ── Go backend tests ──────────────────────────────────────────────
+#
+# These jobs use the Go builder image from our Dockerfile and run
+# independently so you see which layer failed at a glance.
+#
+# PG integration tests use GitLab services (a postgres sidecar) instead
+# of testcontainers — no Docker-in-Docker needed. The sidecar is
+# accessible at hostname "postgres" on port 5432. StartPostgres()
+# detects PG_TEST_DSN and connects directly, skipping testcontainers.
+# NOTE: use postgres17-o9-image (persistent) not postgres17-o9-ci
+# (testcontainers init-then-exit) for the service sidecar.
+
+test-go:
+  stage: quality
+  image: acr-main.is.adyen.com/containers/golang-base@sha256:9ff3d660a23cc109810e8e685ae2595c5b54723c20553072f2cc0ed224bb24e9
+  rules: *go-test-rules
+  # Override default before_script (pnpm install) — not available in Go image.
+  before_script: []
+  variables:
+    GOMODCACHE: "${CI_PROJECT_DIR}/services/.go-mod-cache"
+    GOCACHE: "${CI_PROJECT_DIR}/services/.go-build-cache"
+  cache:
+    key:
+      files:
+        - services/go.sum
+    paths:
+      - services/.go-mod-cache
+      - services/.go-build-cache
+  script:
+    - go -C services mod download
+    - go -C services test ./...
+
+test-go-pg:
+  stage: quality
+  image: acr-main.is.adyen.com/containers/golang-base@sha256:9ff3d660a23cc109810e8e685ae2595c5b54723c20553072f2cc0ed224bb24e9
+  rules: *go-test-rules
+  # Override default before_script (pnpm install) — not available in Go image.
+  before_script: []
+  variables:
+    GOMODCACHE: "${CI_PROJECT_DIR}/services/.go-mod-cache"
+    GOCACHE: "${CI_PROJECT_DIR}/services/.go-build-cache"
+    PG_TEST_DSN: "host=postgres port=5432 user=peaky password=peaky dbname=peaky_test sslmode=disable"
+  cache:
+    key:
+      files:
+        - services/go.sum
+    paths:
+      - services/.go-mod-cache
+      - services/.go-build-cache
+  services:
+    - name: acr-main.is.adyen.com/containers/postgres17-o9-image@sha256:7273db3401d1c377e532282e37de620563c7b22d4272f48f00735696bcbceec0
+      alias: postgres
+      # The internal postgres image's pg_hba.conf only allows 10.0.0.0/8.
+      # In GitLab CI Docker executor the job and service share the network
+      # namespace, so connections arrive from 127.0.0.1 and are rejected.
+      # We override the entrypoint to append a 127.0.0.1 trust rule and
+      # create the test user / database before starting postgres.
+      entrypoint: ["sh", "-c"]
+      command:
+        - |
+          set -e
+          export PGDATA=/var/lib/pgsql/17/data
+          if [ ! -s "$PGDATA/PG_VERSION" ]; then
+            initdb --pgdata="$PGDATA" --auth=trust --locale=en_US.UTF-8 -U postgres
+          fi
+          echo 'host all all 127.0.0.1/32 trust' >> "$PGDATA/pg_hba.conf"
+          pg_ctl -D "$PGDATA" -o "-c listen_addresses='127.0.0.1'" -w start
+          psql -h 127.0.0.1 -U postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='peaky'" | grep -q 1 || \
+            psql -h 127.0.0.1 -U postgres -c "CREATE USER peaky WITH PASSWORD 'peaky'"
+          psql -h 127.0.0.1 -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='peaky_test'" | grep -q 1 || \
+            psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE peaky_test OWNER peaky"
+          pg_ctl -D "$PGDATA" -m fast -w stop
+          exec postgres -D "$PGDATA" -c listen_addresses='*'
+      variables:
+        POSTGRES_DB: peaky_test
+        POSTGRES_USER: peaky
+        POSTGRES_PASSWORD: peaky
+  script:
+    - go -C services test -tags integration -v -count=1 -timeout 120s ./internal/syncengine/repo/...
+    - go -C services test -tags integration -v -count=1 -timeout 120s ./internal/dbmigrate/...
+
+# test-go-fuzz:
+#   stage: quality
+#   image: acr-main.is.adyen.com/containers/golang-base@sha256:9ff3d660a23cc109810e8e685ae2595c5b54723c20553072f2cc0ed224bb24e9
+#   before_script: []
+#   script:
+#     - cd services && go test -fuzz=FuzzParseWire  -fuzztime=30s ./internal/syncengine/conflict/
+#     - cd services && go test -fuzz=FuzzCompareWire -fuzztime=30s ./internal/syncengine/conflict/
+#     - cd services && go test -fuzz=FuzzWinsOver    -fuzztime=30s ./internal/syncengine/conflict/
+#     - cd services && go test -fuzz=FuzzGenerate    -fuzztime=30s ./internal/syncengine/conflict/
+
+# CI Automation: the ci-automation-mr and ci-automation-changelog jobs come
+# from the components included at the top of this file. The blocks below only
+# adapt them to this repo (background in decisions.md, ci-automation-component).
+#
+# Both need the cache override: they run in the ci-automation image (no
+# pnpm/node), so the repo-global default cache would fail. No before_script
+# override: since components 0.0.3 the component jobs carry their own
+# before_script (the Vault token fetch), which already replaces the global
+# default.before_script — clearing it here would silently disable the fetch.
+ci-automation-mr:
+  cache: []
+
+# git-cliff is a dependency of the `site` uv project (there is no root uv
+# project) and the changelog lives under site/, so both differ from the
+# component defaults (project dir ".", CHANGELOG.md) and must be set here.
+ci-automation-changelog:
+  interruptible: false
+  cache: []
+  variables:
+    CI_AUTOMATION_CHANGELOG_PATH: "site/docs/development/changelog.md"
+    CI_AUTOMATION_CHANGELOG_CLIFF_PROJECT_DIR: "site"

@@ -1,0 +1,33 @@
+{
+  "milestone": "misc-fixes",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": { "passed": true, "command": "pnpm test:run --reporter=verbose", "exitCode": 0 },
+    "typecheck": { "passed": true, "command": "pnpm typecheck", "exitCode": 0 },
+    "lint": { "passed": true, "command": "pnpm lint", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills",
+      "suggestion": "The backend-worker skill procedure step 6 requires manual curl verification for all features. Consider adding a note that curl checks can be skipped for pure refactoring, dead-code-removal, or test-only features that don't change API behavior. Workers consistently skip this step for non-endpoint-changing work but report followedProcedure=true.",
+      "evidence": "Both fix-templates-put-field-sync (session 3bef5f1f) and fix-assessment-dead-code-and-test-gap (session 02228f46) workers skipped interactive curl checks. The first was a 3-line field sync fix well-covered by unit tests; the second was pure dead-code removal with test enhancement. Neither changed API behavior in a way that manual curl testing would catch beyond what unit tests cover.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "PUT /api/templates/[id] accepts Partial<TemplateDetail> with no Zod runtime validation. AGENTS.md mentions Zod schemas but none are used in template endpoints.",
+      "reason": "Pre-existing pattern across the entire codebase, not introduced by this milestone. AGENTS.md already notes that 'Manual if-checks are acceptable for simple bulk endpoints with basic field validation.' Out of scope for misc-fixes milestone."
+    }
+  ],
+  "previousRound": null
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/OpfsStorageMeasured.v1.json",
+  "title": "OpfsStorageMeasured.v1",
+  "description": "Emitted whenever the /system page or a sync cycle measures OPFS usage. Carries `supported: false` when navigator.storage.estimate is unavailable.",
+  "x-peaky-event": {
+    "type": "OpfsStorageMeasured.v1",
+    "sources": [
+      "peaky.system"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "usageBytes": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Bytes used. Null when the Storage Estimation API is unavailable.",
+      "markdownDescription": "Bytes used. Null when the Storage Estimation API is unavailable."
+    },
+    "quotaBytes": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Browser-reported quota. Null when the Storage Estimation API is unavailable.",
+      "markdownDescription": "Browser-reported quota. Null when the Storage Estimation API is unavailable."
+    },
+    "supported": {
+      "type": "boolean",
+      "description": "Whether navigator.storage.estimate() returned a usable measurement.",
+      "markdownDescription": "Whether navigator.storage.estimate() returned a usable measurement."
+    }
+  },
+  "required": [
+    "usageBytes",
+    "quotaBytes",
+    "supported"
+  ],
+  "additionalProperties": false
+}

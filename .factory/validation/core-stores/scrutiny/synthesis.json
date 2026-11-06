@@ -1,0 +1,56 @@
+{
+  "milestone": "core-stores",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": { "passed": true, "command": "pnpm test:run --reporter=verbose", "exitCode": 0 },
+    "typecheck": { "passed": true, "command": "pnpm typecheck", "exitCode": 0 },
+    "lint": { "passed": true, "command": "pnpm lint", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Added 'Dual-Store Sync Pattern' section to architecture.md documenting the templates dual-store pattern (templateDetails record + templates summary array) and the risk of incomplete field sync when mutating.",
+      "sourceFeature": "templates-mutable-store"
+    },
+    {
+      "target": "library",
+      "description": "Added 'Bulk Action Conventions' section to architecture.md documenting the 'ids' field name convention for bulk endpoints and noting the context difference with applicationIds in review models.",
+      "sourceFeature": "applications-mutable-store"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Clarify Zod validation convention: 'Use Zod schemas for request body validation on endpoints with complex domain objects (rules, notes, attachments). For simple bulk endpoints that only accept an ids array or a single string field, manual validation with createError is acceptable.' Both templates and applications workers used manual validation consistently, and the current blanket 'Use Zod' guidance is not being followed for simple endpoints.",
+      "evidence": "templates-mutable-store POST/PUT endpoints and all three applications bulk endpoints use manual if-checks instead of Zod. Only routes dealing with complex objects (notes, rules, attachments) use Zod schemas. 4 out of 5 new mutation endpoints used manual validation.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Clarify type location convention: 'Types live in app/models/ — import from there when a shared type exists. For server-only data store types (e.g., ApplicationRecord) where no frontend model exists yet, defining the type locally in server/data/ is acceptable. Create shared types in app/models/ when both frontend and backend need them.'",
+      "evidence": "applications-mutable-store defined ApplicationRecord locally in server/data/applications.ts because no Application type exists in app/models/. Templates store imports from app/models/ because those types already existed. The current AGENTS.md guidance is absolute ('Types live in app/models/') but not all types need to be shared.",
+      "isSystemic": false
+    },
+    {
+      "target": "skills",
+      "suggestion": "In the backend-worker skill, add a note that TDD (test-first) is recommended for complex logic and validation, but implement-first-then-test is acceptable for straightforward store wiring and endpoint plumbing. Both workers in this milestone deviated from strict TDD for simple wiring tasks.",
+      "evidence": "templates-mutable-store worker explicitly noted in handoff feedback that TDD felt unnatural for simple store wiring. The applications-mutable-store worker also implemented first then tested. Both produced comprehensive test suites despite not following strict TDD order.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "applicationIds vs ids field naming inconsistency between review model and bulk endpoints",
+      "reason": "These are different semantic contexts (review.applicationIds is a relationship field on the review model, while bulk endpoint 'ids' is a request parameter). No actual inconsistency — just different domains. Documenting in library as context is sufficient."
+    }
+  ],
+  "previousRound": null
+}

@@ -1,0 +1,120 @@
+# golangci-lint config for peaky-api Go service.
+# Run: golangci-lint run (from services/)
+# Install: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+#
+# Focused on memory efficiency, correctness, and Lambda cold-start safety.
+# See tasks.md section 13 for the full adversarial review checklist.
+
+version: "2"
+
+linters:
+  enable:
+    # Core correctness
+    - govet          # misuse of sync primitives, printf format, unreachable code
+    - staticcheck    # deprecated API, ineffectual assignments, missing error checks
+    - ineffassign    # assigned values never used
+    - unused         # unused variables, functions, and types
+    - errcheck       # unchecked errors (all errors must be handled)
+    # Memory / allocation
+    - prealloc       # suggests pre-allocating slices where length is known
+    # Context safety
+    - noctx          # HTTP requests without context
+    # Resource leak prevention
+    - bodyclose      # HTTP response body not closed
+    - sqlclosecheck  # sql.Rows / sql.Stmt not closed
+    - rowserrcheck   # sql.Rows.Err() not checked after iteration
+    # Security
+    - gosec          # common security issues (SQL injection guard, etc.)
+    # Architecture / layout guards — deterministic encoding of the import-based
+    # rules from the rtf-go-reviewer §9 dimension (domain stays Fuego-free; binaries
+    # import only the features they serve). The non-import §9 rules (routes in
+    # routes.go, DTO placement) remain in the rtf-go-reviewer droid.
+    - depguard       # forbid imports that violate the feature-first layering
+    # Error handling quality
+    - wrapcheck      # bare error returns without wrapping (forces fmt.Errorf context)
+    - errorlint      # %v instead of %w, == instead of errors.Is, type assertion instead of errors.As
+    # Test discipline
+    - thelper         # test helpers missing t.Helper()
+    # Style / simplification
+    - godot          # comments should end with a period
+    - misspell       # English spelling in comments and strings
+
+  settings:
+    staticcheck:
+      checks:
+        - "all"
+        - "-SA1019" # allow deprecated usage temporarily
+
+    gosec:
+      excludes:
+        - G101 # hardcoded credentials — seed/actors.json is intentional dev data
+        - G304 # file path from variable — actors.json path is from trusted env var
+
+    depguard:
+      rules:
+        # Domain packages are transport-agnostic: no web framework imports.
+        domain-no-fuego:
+          files:
+            - "**/internal/syncengine/conflict/**"
+            - "**/internal/syncengine/entity/**"
+          deny:
+            - pkg: "github.com/go-fuego/fuego"
+              desc: "domain packages (conflict, entity) must stay Fuego-free — keep web concerns in the syncengine HTTP layer"
+        # peaky-sse serves only the SSE stream — it must not pull in API features.
+        sse-binary-lean:
+          files:
+            - "**/cmd/peaky-sse/**"
+          deny:
+            - pkg: "github.com/peaky-team/peaky/services/internal/syncengine"
+              desc: "peaky-sse serves only the SSE stream — importing API features bloats the binary and couples the services"
+            - pkg: "github.com/peaky-team/peaky/services/internal/catalog"
+              desc: "peaky-sse serves only the SSE stream"
+            - pkg: "github.com/peaky-team/peaky/services/internal/events"
+              desc: "peaky-sse serves only the SSE stream"
+            - pkg: "github.com/peaky-team/peaky/services/internal/attachment"
+              desc: "peaky-sse serves only the SSE stream"
+        # peaky-ctl runs migrate/seed only — no HTTP feature packages at all.
+        ctl-binary-lean:
+          files:
+            - "**/cmd/peaky-ctl/**"
+          deny:
+            - pkg: "github.com/peaky-team/peaky/services/internal/syncengine"
+              desc: "peaky-ctl runs migrate/seed only — no HTTP feature packages"
+            - pkg: "github.com/peaky-team/peaky/services/internal/catalog"
+              desc: "peaky-ctl runs migrate/seed only"
+            - pkg: "github.com/peaky-team/peaky/services/internal/events"
+              desc: "peaky-ctl runs migrate/seed only"
+            - pkg: "github.com/peaky-team/peaky/services/internal/attachment"
+              desc: "peaky-ctl runs migrate/seed only"
+            - pkg: "github.com/peaky-team/peaky/services/internal/sse"
+              desc: "peaky-ctl runs migrate/seed only"
+
+    errcheck:
+      check-type-assertions: true
+      check-blank: false   # allow _ = Close() / _ = Flush() — these are deferred cleanup
+
+    wrapcheck:
+      ignore-interface-regexps:
+        # Internal repo interface errors are wrapped by the caller (handler layer).
+        - "SyncRepo"
+
+    errorlint:
+      asserts: false
+
+  exclusions:
+    rules:
+      # Test files: relax errcheck, godot, wrapcheck, errorlint
+      - path: "_test\\.go"
+        linters:
+          - errcheck
+          - godot
+          - wrapcheck
+          - errorlint
+      # Integration test build tag files
+      - path: "integration_test\\.go"
+        linters:
+          - godot
+
+formatters:
+  enable:
+    - gofmt

@@ -1,0 +1,36 @@
+schema: peaky-workflow
+
+context: |
+  Tech stack: Nuxt v4, Vue3, Tailwind CSS v4, Zod for validation
+
+  For coding conventions: read site/docs/development/vue.md
+  For backend patterns: read site/docs/development/walkthroughs/local-first/api.md
+  For TypeScript conventions: read site/docs/development/typescript.md
+  For testing patterns: read site/docs/development/testing.md
+  For past decisions: read site/docs/development/decisions.md
+  For domain model: read site/docs/development/walkthroughs/codebase/domain.md
+  For domain specs: read openspec/specs/{domain}/spec.md
+  For visual design: read site/docs/development/visual-design.md
+
+  Accuracy over plausibility — never fabricate an API, prop, composable, or table
+  column. When you need a fact (a NuxtUI prop, a VueUse composable, a Drizzle
+  signature, an existing function), resolve it in this order and stop at the first hit:
+  codebase (grep/read the actual source) → project docs above → MCP (e.g. Context7)
+  → web search. If none confirm it, say so and flag it as an assumption/open question
+  rather than inventing a plausible name. A confidently wrong API costs more than an
+  admitted unknown.
+
+rules:
+  design:
+    - |
+      Prefer existing libraries over custom implementations:
+      - Invoke /nuxt-ui skill for NuxtUI v4 components
+      - Use VueUse composables (useLocalStorage, useEventListener, etc.) for common utilities
+      - Extract and compose existing components rather than adding conditional variants
+  specs:
+    - |
+      Before creating a new spec, check existing specs in openspec/specs/ for a suitable domain match.
+      This project follows DDD - prefer extending an existing spec over creating a new one.
+      Only create a new spec if the change introduces a genuinely new bounded context.
+  tasks:
+    - Always include a task to update decision log (site/docs/development/decisions.md) and changelog.md

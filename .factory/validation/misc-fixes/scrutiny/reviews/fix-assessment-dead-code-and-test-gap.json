@@ -1,0 +1,21 @@
+{
+  "featureId": "fix-assessment-dead-code-and-test-gap",
+  "reviewedAt": "2026-03-06T11:35:00.000Z",
+  "commitId": "3159c6da9728b2efa64c4d850348f5fd564fd692",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Clean, well-scoped fix that addresses both items from the scrutiny findings. The dead code removal (progressStore, getProgress, setProgress, StoredProgress) is complete — no references remain in the codebase. The PUT progress handler was simplified correctly: the redundant setProgress() call was removed while the in-memory review mutation (the actual source of truth) was preserved. The readback assertions added to both PUT progress tests are meaningful — they verify actual pillar data (progress, answeredQuestions, totalQuestions) on the review object, not just the response shape. The comment was updated from 'Also update the review's pillar progress in-memory for immediate consistency' to 'Update the review's pillar progress in-memory', correctly reflecting that this is now the sole persistence path rather than a secondary consistency mechanism.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The backend-worker skill procedure requires manual curl verification (step 6: 'Manual Verification' with interactiveChecks), but the worker skipped this step entirely — the handoff contains no interactiveChecks field. For a pure dead-code-removal + test-enhancement fix this is justified (no new endpoints or changed behavior to curl-test), but the skill procedure doesn't distinguish between 'new endpoint' work and 'refactor/cleanup' work. The skill could note that manual curl checks can be skipped for pure refactoring/dead-code-removal features that don't change API behavior.",
+      "evidence": "Handoff JSON has no interactiveChecks field. Skill SKILL.md step 6 says 'Each manual check = one interactiveChecks entry'. skillFeedback.followedProcedure is true despite this omission."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Both scrutiny items fully addressed: (1) dead progressStore/getProgress/setProgress code completely removed from server/data/answers.ts and its import removed from the PUT handler, with no stale references remaining anywhere in the codebase; (2) both PUT progress tests now include readback assertions that verify the review object's pillar data (progress, answeredQuestions, totalQuestions) was actually persisted, not just the response shape. All validators passed (599 tests, typecheck clean, lint clean). No blocking issues found."
+}

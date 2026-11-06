@@ -1,0 +1,32 @@
+{
+  "flowId": "applications",
+  "assertions": {
+    "VAL-APP-001": {
+      "status": "pass",
+      "evidence": "POST /api/applications/bulk/delete with {\"ids\":[\"app-008\"]} returned 200 with {\"success\":true,\"message\":\"Deleted 1 application(s)\"}. Subsequent GET /api/applications returned 7 apps; app-008 was not present in the list."
+    },
+    "VAL-APP-002": {
+      "status": "pass",
+      "evidence": "After POST /api/applications/bulk/archive with {\"ids\":[\"app-006\"]} returned 200, GET /api/applications showed app-006 with \"archived\":true."
+    },
+    "VAL-APP-003": {
+      "status": "pass",
+      "evidence": "POST /api/applications/bulk/transfer with {\"ids\":[\"app-007\"],\"newOwner\":\"QA Team\"} returned 200. GET /api/applications/app-007 showed \"owner\":\"QA Team\"."
+    },
+    "VAL-APP-004": {
+      "status": "pass",
+      "evidence": "After archive (app-006) and transfer (app-007) mutations, GET /api/applications returned all 8 apps (pre-delete) with app-006 archived:true and app-007 owner:\"QA Team\". Mutations persisted across separate GET requests within the same server session, confirming mutable in-memory store."
+    },
+    "VAL-APP-005": {
+      "status": "pass",
+      "evidence": "POST /api/applications/bulk/archive with {\"ids\":[\"app-006\"]} returned HTTP 200 (not 400). The {\"ids\":[...]} request body format is accepted correctly, confirming frontend-backend contract alignment."
+    },
+    "VAL-APP-006": {
+      "status": "pass",
+      "evidence": "After bulk deleting app-008, GET /api/applications/app-008 returned HTTP 404 with statusMessage \"Application not found\"."
+    }
+  },
+  "frictions": [],
+  "blockers": [],
+  "toolsUsed": ["curl"]
+}

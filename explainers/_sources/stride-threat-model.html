@@ -1,0 +1,605 @@
+<!-- STRIDE threat model — Peaky local-first sync.
+     Assemble: python3 .factory/skills/explainer/assemble.py explainers/_sources/stride-threat-model.html -->
+
+<p style="font:15px/1.6 -apple-system,sans-serif;max-width:640px;margin:40px auto;padding:18px 22px;border:1px solid #b45309;color:#78350f;background:#fffbeb">
+  <strong>Note:</strong> this is an <code>/explainer</code> content source, not a finished page —
+  assemble it first (see <code>.factory/skills/explainer/README.md</code>):<br>
+  <code>python3 .factory/skills/explainer/assemble.py explainers/_sources/stride-threat-model.html</code>
+</p>
+
+<script type="application/json" data-slot="meta">
+{
+  "title": "STRIDE Threat Model — Peaky Local-First Sync",
+  "style": "editorial",
+  "components": ["ledger", "stat", "before-after"],
+  "output": "explainers/stride-threat-model-explainer.html",
+  "md": true,
+  "thesis": "Everything inside the browser — OPFS SQLite, the cached entitlement snapshot, every UI gate — is untrusted; the sync push is the only place Peaky enforces anything for synced data, but it is not the only place Peaky writes — a line-by-line audit of this deck's own mitigation claims cut them from 20 to 11 and raised the open ledger from 21 to 29, including 23 Nitro write routes that were never retired.",
+  "slides": [
+    {"kicker": "Hero", "title": "The browser is untrusted; the sync push is the boundary", "point": "11 behaviours are closed by architecture; 29 stay open, 7 of them HIGH — and the audit that produced those numbers deleted 9 claims this deck used to make"},
+    {"kicker": "01 · Trust boundary", "title": "The browser is entirely untrusted", "point": "OPFS SQLite, the entitlement snapshot, and every UI gate are DevTools-readable and DevTools-editable — for synced data the Go sync engine is the only enforcement point"},
+    {"kicker": "01 · Trust boundary", "title": "Walk the data flow", "point": "a field edit crosses the boundary at POST /api/sync/push carrying the x-actor-id header — an unrecognized value isn't rejected, it becomes a wildcard-entitled actor_dev"},
+    {"kicker": "02 · Closed by architecture", "title": "What survived the audit", "point": "11 behaviours the shape of this system closes with no threat-specific code — down from 20, after every claim was checked against the code it describes"},
+    {"kicker": "02 · Closed by architecture", "title": "Spoofing & tampering — 3 rows", "point": "PKCE state validation, a single-statement guarded upsert, and hard batch caps — the session-cookie and CSRF claims did not survive"},
+    {"kicker": "02 · Closed by architecture", "title": "Repudiation & disclosure — 4 rows", "point": "SaveEvent() stamps a server-side actor on every event row, SSE carries {cursor, family} only, and pull filters entitlements in SQL"},
+    {"kicker": "02 · Closed by architecture", "title": "Availability & privilege — 4 rows", "point": "one pg_notify per family per batch, jittered backoff on both gates, and per-event CanEdit that ignores the client's cached snapshot"},
+    {"kicker": "03 · Active threats", "title": "29 threats still open", "point": "grouped by risk; the audit added 8 rows the deck had been publishing as mitigations"},
+    {"kicker": "03 · Active threats", "title": "HIGH — 7 tracked", "point": "four trace to the unverified actor headers; the other three are an unvalidated HLC that wins conflicts forever, 23 Nitro write routes that were never retired, and an unauthenticated directory mirror"},
+    {"kicker": "03 · Active threats", "title": "MEDIUM — 9 tracked", "point": "non-atomic state-and-audit writes, no session revocation, stale entitlement registries, and a Vercel-specific debug-globals gate"},
+    {"kicker": "03 · Active threats", "title": "LOW — 13 tracked", "point": "CSRF resting on one attribute, quota and rate-limit gaps, a hardcoded fallback admin, and narrower offline coverage than local-first implies"},
+    {"kicker": "03 · Active threats", "title": "Phase 3 deletes the header path", "point": "services/internal/middleware/actor.go swaps header trust for a verified JWT, and the AuthZ engine landing beside it turns test roles into seeded policy data — so the fallback and the roles header are removed outright, not worked around"},
+    {"kicker": "04 · Roadmap", "title": "Why these wait, not whether", "point": "Cedar, JWT, and an idempotency key are what the scheduled gaps wait on — but three now sit in an Unscheduled tier, waiting on a decision rather than a dependency"},
+    {"kicker": "04 · Roadmap", "title": "The facts announce themselves", "point": "a marked doc line, a test that ties it to the code, and a pre-commit hook that fails the commit before it lands — the mechanical facts held; the prose, which nothing pins, is what rotted"},
+    {"kicker": "05 · Security review checklist", "title": "Before this ships", "point": "12 items, saved locally as they're reviewed — deployment contracts, plus the three code decisions the audit forced"}
+  ],
+  "facts": [
+    "POST /api/sync/push is the only server-side enforcement point for synced data; the browser (OPFS SQLite, the entitlement snapshot cache, every UI gate) is entirely untrusted and DevTools-editable.",
+    "It is not the only write surface. 23 write routes still ship under Nitro's server/api/: 9 have no authentication or authorization at all, and 2 authorize from an actor object in the request body that defaults to admin-001 with the admin role. They mutate in-process state, not the Postgres system of record — but that state is what the local-first fallback reads.",
+    "11 behaviours are closed by architecture, not 20. A line-by-line audit on 29 Jul 2026 found 9 of the deck's 20 mitigation claims were wrong: the CSRF and session-cookie rows both assumed there is no session cookie (there is — sealed, HttpOnly peaky_auth, SameSite=Lax), and the 'one sync funnel replaced 20+ write endpoints' row described endpoints that were never removed.",
+    "29 active threats are tracked (7 HIGH, 9 MEDIUM, 13 LOW). Four HIGH threats stem from Phase 1 trusting the x-actor-id / x-actor-roles headers; the other three were found by the audit.",
+    "The per-field HLC that decides every conflict is never validated. ParseWire() does not require wallclock to be numeric and WinsOver() compares lexicographically, so a client sending a valid pushedAt with hlc = \"zzzzzzzz:9999:actor_x\" wins every future conflict on that field, permanently. The 30-second future check applies to pushedAt, a different field.",
+    "State and audit are not written atomically server-side: field_versions is committed one autocommit per field before SaveEvent()'s transaction opens, so a mid-event failure leaves live field values with no events row, no pg_notify, and the event reported to the client as rejected.",
+    "Phase 3 replaces header-based identity with Okta JWT validation in one file, services/internal/middleware/actor.go, and lands the AuthZ engine beside it: test roles become seeded policy data, so the actor_dev fallback and the x-actor-roles header are deleted outright and all four header-trust HIGH threats cease to exist rather than being mitigated.",
+    "Until Phase 3 ships, the reverse proxy / Lambda Web Adapter must strip x-actor-roles and re-inject x-actor-id from the session — a deployment contract, not something enforced in code today.",
+    "Eight FizzBee specs in formal_verification/ formally verify sync/SSE invariants several mitigations rely on — pull-side entitlement scoping, content-free SSE frames, push idempotency, and more — but none run in CI yet (issue #29) and every spec assumes an honest, already-identified client.",
+    "The drift guard is why the mechanical facts held while the prose rotted: it pins paths, caps, and entity types and fails the commit on the author's own machine, but it only asserts that this deck's files exist — no claim on this page was checked until the audit."
+  ],
+  "links": []
+}
+</script>
+
+<template data-slot="content">
+<!-- ── HERO ── -->
+<section id="top" class="hero">
+  <div class="reveal">
+    <div class="hero-kicker">Security · STRIDE · for the review engineer</div>
+    <h1 class="display">Peaky STRIDE<br><em>threat model.</em></h1>
+    <p class="lede">The browser holds a full copy of the data and makes its own decisions locally — <button class="term" data-term="opfs">OPFS</button> SQLite, the cached entitlement snapshot, and every UI permission gate are all DevTools-readable and DevTools-editable. <strong>POST /api/sync/push is the only place the server enforces anything for synced data</strong> — but it is not the only place the server writes.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="heroStats"></div>
+  <p class="muted-note reveal reveal-delay-2">Phase 1's largest gap is <button class="term" data-term="actorheader">header-based actor identity</button>: an unrecognized or missing <code>x-actor-id</code> silently falls back to a wildcard-entitled <code>actor_dev</code>, and <code>x-actor-roles: admin</code> self-grants wildcard admin for anyone — at the Go service boundary; the Nuxt surface already fails closed on verified Okta OIDC, and the roles header exists as a local-testing affordance. Phase 3 brings the same verified identity to the services and, with the AuthZ engine beside it, deletes both outright — test roles become seeded policy data, so all four header-trust HIGH threats cease to exist rather than being worked around. The other three HIGH threats came out of that audit: the per-field HLC that decides every conflict is never validated, 23 Nitro write routes outside the sync path were never retired — 9 unauthenticated — and the Okta directory mirror needs no authentication at all. Press <kbd style="font-family:var(--mono);font-size:.8em;padding:2px 6px;border:1px solid var(--border-strong);border-radius:4px">P</kbd> or click ▶ to present.</p>
+</section>
+
+<!-- ── 01 · TRUST BOUNDARY ── -->
+<section id="boundary">
+  <div class="reveal" id="boundaryHead">
+    <span class="eyebrow">01 · Trust boundary</span>
+    <h2 class="sec-title">The browser is <em>entirely</em> untrusted.</h2>
+    <p class="sec-sub">The <button class="term" data-term="opfs">OPFS</button> SQLite database, the entitlement snapshot, and the UI logic all run in the browser — all three can be read and edited from DevTools. The server sync engine is the only enforcement point. Walk the data flow below to see exactly where control crosses the boundary.</p>
+  </div>
+
+  <figure class="reveal reveal-delay-1 boundary-fig" id="boundaryDiagram" data-zoom aria-label="Trust boundary and sync data flow, from the browser to the audit log">
+    <svg viewBox="0 0 1200 460" fill="none" xmlns="http://www.w3.org/2000/svg" role="img">
+      <rect x="20" y="24" width="560" height="410" rx="14" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="6 3" fill="var(--surface)" fill-opacity="0.3"/>
+      <text x="40" y="52" font-family="ui-monospace,monospace" font-size="17" letter-spacing="1.5" fill="var(--text-dim)">UNTRUSTED — BROWSER</text>
+
+      <g id="tbdBrowser" class="tbd-node">
+        <rect x="50" y="76" width="220" height="104" rx="10" stroke="var(--border-strong)" stroke-width="1.5" fill="var(--surface)"/>
+        <text x="160" y="120" text-anchor="middle" font-family="ui-monospace,monospace" font-size="16" fill="var(--text)">Browser UI</text>
+        <text x="160" y="140" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="var(--text-dim)">Nuxt / Vue</text>
+      </g>
+
+      <g id="tbdOpfs" class="tbd-node">
+        <rect x="320" y="76" width="220" height="104" rx="10" stroke="var(--border-strong)" stroke-width="1.5" fill="var(--surface)"/>
+        <text x="430" y="120" text-anchor="middle" font-family="ui-monospace,monospace" font-size="16" fill="var(--text)">OPFS SQLite</text>
+        <text x="430" y="140" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="var(--text-dim)">outbox · versions</text>
+      </g>
+      <line x1="270" y1="128" x2="318" y2="128" stroke="var(--border-strong)" stroke-width="1" marker-end="url(#tbdArrDim)"/>
+
+      <g id="tbdEnt" class="tbd-node">
+        <rect x="50" y="210" width="490" height="96" rx="10" stroke="var(--border-strong)" stroke-width="1.5" fill="var(--surface)"/>
+        <text x="295" y="252" text-anchor="middle" font-family="ui-monospace,monospace" font-size="16" fill="var(--text)">entitlement_snapshots (client cache)</text>
+        <text x="295" y="274" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="var(--text-dim)">DevTools-accessible — not authoritative</text>
+      </g>
+
+      <g id="tbdHeader" class="tbd-node">
+        <rect x="50" y="336" width="220" height="82" rx="10" stroke="var(--border-strong)" stroke-width="1.5" fill="var(--surface)"/>
+        <text x="160" y="370" text-anchor="middle" font-family="ui-monospace,monospace" font-size="16" fill="var(--warning)">x-actor-id header</text>
+        <text x="160" y="390" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="var(--text-dim)">Phase 1: unverified</text>
+      </g>
+
+      <rect x="630" y="24" width="550" height="410" rx="14" stroke="var(--success)" stroke-opacity="0.4" stroke-width="1.5" fill="var(--success-dim)"/>
+      <text x="650" y="52" font-family="ui-monospace,monospace" font-size="17" letter-spacing="1.5" fill="var(--success)">TRUSTED — SERVER (GO)</text>
+
+      <g id="tbdPush" class="tbd-node">
+        <rect x="660" y="76" width="230" height="104" rx="10" stroke="var(--success)" stroke-opacity="0.5" stroke-width="2" fill="var(--success-dim)"/>
+        <text x="775" y="120" text-anchor="middle" font-family="ui-monospace,monospace" font-size="16" fill="var(--success)">POST /sync/push</text>
+        <text x="775" y="140" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="var(--text-dim)">authz · HLC · dedup</text>
+      </g>
+
+      <g id="tbdValidation" class="tbd-node">
+        <rect x="660" y="222" width="230" height="88" rx="10" stroke="var(--border-strong)" stroke-width="1.5" fill="var(--surface)"/>
+        <text x="775" y="260" text-anchor="middle" font-family="ui-monospace,monospace" font-size="16" fill="var(--text)">Authz boundary</text>
+        <text x="775" y="280" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="var(--text-dim)">actors.json → Cedar</text>
+      </g>
+
+      <g id="tbdHlc" class="tbd-node">
+        <rect x="950" y="222" width="230" height="88" rx="10" stroke="var(--border-strong)" stroke-width="1.5" fill="var(--surface)"/>
+        <text x="1065" y="260" text-anchor="middle" font-family="ui-monospace,monospace" font-size="16" fill="var(--text)">HLC resolution</text>
+        <text x="1065" y="280" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="var(--text-dim)">conflict · 30s guard</text>
+      </g>
+
+      <g id="tbdAudit" class="tbd-node">
+        <rect x="950" y="344" width="230" height="70" rx="10" stroke="var(--border-strong)" stroke-width="1.5" fill="var(--surface)"/>
+        <text x="1065" y="378" text-anchor="middle" font-family="ui-monospace,monospace" font-size="16" fill="var(--text)">Audit log</text>
+        <text x="1065" y="398" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="var(--text-dim)">SaveEvent(actorID)</text>
+      </g>
+
+      <g id="tbdPg" class="tbd-node">
+        <rect x="660" y="344" width="230" height="70" rx="10" stroke="var(--border-strong)" stroke-width="1.5" fill="var(--surface)"/>
+        <text x="775" y="378" text-anchor="middle" font-family="ui-monospace,monospace" font-size="16" fill="var(--text)">PostgreSQL</text>
+        <text x="775" y="398" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="var(--text-dim)">field_versions</text>
+      </g>
+
+      <g id="tbdArrow1">
+        <line x1="540" y1="128" x2="658" y2="128" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#tbdArr)"/>
+      </g>
+      <g id="tbdArrowFlow1" class="tbd-flow">
+        <line x1="540" y1="128" x2="658" y2="128" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="8 4" class="tbd-dash"/>
+      </g>
+      <text x="600" y="112" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="var(--text-dim)">push events</text>
+
+      <g id="tbdArrowActor">
+        <path d="M270,377 H600 V266 H658" stroke="var(--border-strong)" stroke-width="1.5" fill="none" marker-end="url(#tbdArr)"/>
+      </g>
+      <g id="tbdArrowFlow2" class="tbd-flow">
+        <path d="M270,377 H600 V266 H658" stroke="var(--warning)" stroke-width="2.5" stroke-dasharray="8 4" fill="none" class="tbd-dash"/>
+      </g>
+      <text x="435" y="365" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="var(--text-dim)">actor identity</text>
+
+      <line x1="775" y1="180" x2="775" y2="220" stroke="var(--border-strong)" stroke-width="1" marker-end="url(#tbdArrDim)"/>
+      <line x1="890" y1="266" x2="948" y2="266" stroke="var(--border-strong)" stroke-width="1" marker-end="url(#tbdArrDim)"/>
+      <line x1="1065" y1="310" x2="1065" y2="342" stroke="var(--border-strong)" stroke-width="1" marker-end="url(#tbdArrDim)"/>
+      <line x1="775" y1="310" x2="775" y2="342" stroke="var(--border-strong)" stroke-width="1" marker-end="url(#tbdArrDim)"/>
+
+      <g id="tbdFlowPushToAuthz" class="tbd-flow">
+        <line x1="775" y1="180" x2="775" y2="220" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="7 3" class="tbd-dash"/>
+      </g>
+      <g id="tbdFlowAuthzToHlc" class="tbd-flow">
+        <line x1="890" y1="266" x2="948" y2="266" stroke="var(--success)" stroke-width="2.5" stroke-dasharray="7 3" class="tbd-dash"/>
+      </g>
+      <g id="tbdFlowHlcToAudit" class="tbd-flow">
+        <line x1="1065" y1="310" x2="1065" y2="342" stroke="var(--success)" stroke-width="2.5" stroke-dasharray="7 3" class="tbd-dash"/>
+      </g>
+      <g id="tbdFlowAuthzToPg" class="tbd-flow">
+        <line x1="775" y1="310" x2="775" y2="342" stroke="var(--success)" stroke-width="2.5" stroke-dasharray="7 3" class="tbd-dash"/>
+      </g>
+
+      <g id="tbdArrowSse">
+        <path d="M660,110 C 590,150 560,210 545,252" stroke="var(--border-strong)" stroke-width="1" stroke-dasharray="4 3" fill="none" marker-end="url(#tbdArrDim)"/>
+      </g>
+      <g id="tbdFlowSse" class="tbd-flow">
+        <path d="M660,110 C 590,150 560,210 545,252" stroke="var(--violet)" stroke-width="2.5" stroke-dasharray="8 4" fill="none" class="tbd-dash"/>
+      </g>
+      <text x="595" y="180" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="var(--text-dim)">SSE cursor</text>
+
+      <defs>
+        <marker id="tbdArr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="var(--text-dim)"/></marker>
+        <marker id="tbdArrDim" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L6,2.5 z" fill="var(--border-strong)"/></marker>
+      </defs>
+      <style>
+        .tbd-node{transition:opacity .45s ease,filter .45s ease}
+        #boundaryDiagram.tbd-running .tbd-node{opacity:.18}
+        #boundaryDiagram.tbd-running .tbd-node[data-active]{opacity:1}
+        [data-active="accent"]{filter:drop-shadow(0 0 8px var(--accent))}
+        [data-active="success"]{filter:drop-shadow(0 0 8px var(--success))}
+        [data-active="warning"]{filter:drop-shadow(0 0 8px var(--warning))}
+        [data-active="violet"]{filter:drop-shadow(0 0 8px var(--violet))}
+        .tbd-flow{opacity:0;transition:opacity .3s ease;pointer-events:none}
+        .tbd-flow.tbd-flowing{opacity:1}
+        @keyframes tbdDash{to{stroke-dashoffset:-22}}
+        .tbd-flowing .tbd-dash{animation:tbdDash .6s linear infinite}
+      </style>
+    </svg>
+  </figure>
+
+  <div class="tbd-step-area reveal reveal-delay-2" id="tbdStepArea">
+    <div class="tbd-dots" id="tbdDots"></div>
+    <div class="tbd-annot">
+      <div class="tbd-annot-title" id="tbdTitle">Walk the data flow →</div>
+      <div class="tbd-annot-body" id="tbdBody">Click "Next step" to trace a mutation from the browser to the audit log, and see where the enforcement boundary actually sits.</div>
+    </div>
+    <button class="tbd-btn" id="tbdNext" type="button">Next step →</button>
+    <button class="tbd-btn tbd-btn-ghost" id="tbdReset" type="button" disabled>Reset</button>
+  </div>
+</section>
+
+<!-- ── 02 · MITIGATED BY ARCHITECTURE ── -->
+<section id="mitigated">
+  <div class="reveal" id="mitigatedHead">
+    <span class="eyebrow">02 · Closed by architecture</span>
+    <h2 class="sec-title">What survived <em>the audit</em></h2>
+    <p class="sec-sub">11 behaviours that would need threat-specific code in a server-rendered app are closed by the shape of this architecture alone — no extra logic, just where the data and the decisions live. This list used to say 20. On 29 Jul 2026 every claim was re-read against the code it describes; 9 did not survive and moved to Active Threats, because a mitigation nobody checks is just a belief. Grouped by STRIDE category.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact">
+    <div id="mitigatedA"></div>
+    <div id="mitigatedB"></div>
+    <div id="mitigatedC"></div>
+  </div>
+</section>
+
+<!-- ── 03 · ACTIVE THREATS ── -->
+<section id="threats">
+  <div class="reveal" id="threatsHead">
+    <span class="eyebrow">03 · Active threats</span>
+    <h2 class="sec-title">29 threats <em>still</em> open</h2>
+    <p class="sec-sub">Grouped by risk. Every row names what closes it — a phase, a mitigation, or an accepted trade-off. Four of the seven HIGH threats share one root cause: Phase 1 trusts request headers instead of a verified token, and an unrecognized actor doesn't even get rejected — it becomes a wildcard-entitled dev actor. The other three came out of the audit: an HLC nobody validates, 23 write routes nobody retired, and a directory mirror that never had the admin gate this page used to claim for it.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact">
+    <div id="threatsHigh"></div>
+    <div id="threatsMedium"></div>
+    <div id="threatsLow"></div>
+  </div>
+
+  <p class="muted-note critical-note reveal reveal-delay-2" id="threatsCritical"><strong>Deployment contract, not code:</strong> the reverse proxy / Lambda Web Adapter must strip <code>x-actor-roles</code> — and re-inject <code>x-actor-id</code> from the session — before a request reaches the Go services. Nothing in the codebase enforces this today; if that contract slips, an unverified or forged actor id isn't rejected, it becomes a fully entitled <code>actor_dev</code>. Verify it in the AWS WAF / ALB configuration before production traffic.</p>
+
+  <div class="reveal reveal-delay-3 artifact" id="jwtBeforeAfter"></div>
+  <p class="muted-note reveal reveal-delay-4" id="threatsFixNote">Phase 3 fix point: verified <button class="term" data-term="actorheader">JWT</button> validation replaces header trust in one Go file — <code>services/internal/middleware/actor.go</code> — and the <button class="term" data-term="cedar">AuthZ engine</button> landing beside it takes away the last reason to keep the roles header. Both are deleted, not bypassed, so all four <em>header-trust</em> HIGH rows cease to exist: the roles header owns two of them (S and E), and the fourth row above is why it survived this long. It does nothing for the other three HIGH threats — the unvalidated HLC, the Nitro write surface, and the unauthenticated directory mirror are separate work, and none of them is scheduled. Formal verification doesn't reach this gap either — every FizzBee spec in <code>formal_verification/</code> assumes an honest, already-identified client; spoofing is out of scope by design.</p>
+</section>
+
+<!-- ── 04 · ROADMAP ── -->
+<section id="roadmap">
+  <div class="reveal" id="roadmapHead">
+    <span class="eyebrow">04 · Roadmap</span>
+    <h2 class="sec-title">Why these wait, <em>not</em> whether</h2>
+    <p class="sec-sub">Every gap above is tracked, not forgotten — but "tracked" no longer means "scheduled". Grouped by the phase that closes it, with an honest <em>Unscheduled</em> tier for the three the audit surfaced: they wait on a decision, not a dependency. The right column repeats only the risk level, not the full threat — see Active Threats for that. Eight FizzBee specs in <code>formal_verification/</code> back several mitigations with proofs (see Active Threats for the CI-coverage caveat), and a drift guard — <code>tests/guards/threat-model-drift.test.ts</code> — pins this page's paths, caps, and entity types to the code. It does not pin the prose, which is how the mitigation ledger drifted in the first place.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="roadmapLedger"></div>
+
+  <p class="muted-note reveal reveal-delay-2" id="driftLoopIntro"><strong>The facts announce themselves:</strong> every mechanically checkable claim above is tied to the code that owns it, and the tie runs at commit time — not just in CI.</p>
+  <div class="reveal reveal-delay-3 artifact" id="driftLoopDemo">
+    <div class="code-block">
+      <div class="code-head"><i></i>Beat 1 — site/docs/development/walkthroughs/local-first/security.md</div>
+      <pre>- Batches are capped at `500` events&lt;!-- drift:maxPushEvents --&gt; (`maxPushEvents`)</pre>
+    </div>
+    <div class="code-block">
+      <div class="code-head"><i></i>Beat 2 — tests/guards/threat-model-drift.test.ts</div>
+      <pre><span class="y-key">it</span>(<span class="y-str">"maxPushEvents"</span>, () =&gt; {
+  expect(docNumber(<span class="y-str">"maxPushEvents"</span>))          <span class="y-com">// 500, parsed from the doc line</span>
+    .toBe(goConstant(push, <span class="y-str">"maxPushEvents"</span>)); <span class="y-com">// 500, parsed from push.go</span>
+});</pre>
+    </div>
+    <div class="code-block">
+      <div class="code-head"><i></i>Beat 3 — bump push.go to 1000, then git commit</div>
+      <pre>[pre-commit] Threat-model drift guard
+ FAIL  threat model — push caps mirror push.go &gt; maxPushEvents
+   expected 500 to be 1000
+→ commit blocked; the failure names the marker — the fix is a one-line edit next to it.</pre>
+    </div>
+  </div>
+  <p class="muted-note reveal reveal-delay-4" id="driftLoopNote">The same guard checks entity types against the Go registry and every cited file path with <code>existsSync</code> — a deletion trips it too, via <code>--no-renames --diff-filter=D</code> in <code>.husky/pre-commit</code>. The threat model can no longer rot silently: these are the facts a machine can check, and they fail the commit on the author's own machine, before a reviewer ever sees it.</p>
+</section>
+
+<!-- ── 05 · CHECKLIST ── -->
+<section id="checklist">
+  <div class="reveal" id="checklistHead">
+    <span class="eyebrow">05 · Security review checklist</span>
+    <h2 class="sec-title">Before this ships</h2>
+    <p class="sec-sub">Click an item to mark it reviewed. State is saved in <code>localStorage</code>, in this browser only.</p>
+    <p class="muted-note" id="checklistProgress">0 / 12 reviewed</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="checklistWrap"></div>
+</section>
+
+<p class="muted-note reveal" style="max-width:1100px;margin:0 auto 90px;padding:0 clamp(24px,5vw,80px)">Use the diagram to explain the boundary to someone new to local-first, the ledgers during a review, and the checklist right before this ships.</p>
+</template>
+
+<style data-slot="page-css">
+/* Trust-boundary diagram */
+.boundary-fig{margin:40px 0 0;max-width:1040px}
+.boundary-fig svg{width:100%;height:auto;display:block}
+.tbd-step-area{margin-top:28px;border-top:1px solid var(--border);padding-top:24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.tbd-dots{display:flex;gap:8px;flex-shrink:0}
+.tbd-dot{width:10px;height:10px;border-radius:50%;background:var(--border-strong);cursor:pointer;transition:all .3s ease;border:0;padding:0}
+.tbd-dot.active{background:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.tbd-dot.done{background:var(--success)}
+.tbd-annot{flex:1;min-width:220px}
+.tbd-annot-title{font-weight:700;font-size:.95rem;color:var(--text);margin-bottom:6px}
+.tbd-annot-body{font-size:.88rem;color:var(--text-dim);line-height:1.6}
+.tbd-annot-body code{font-family:var(--mono);font-size:.9em;color:var(--accent)}
+.tbd-btn{appearance:none;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);padding:9px 18px;border-radius:8px;font-family:var(--sans);font-size:.82rem;font-weight:700;cursor:pointer;transition:all .3s var(--ease-out-expo);flex-shrink:0}
+.tbd-btn:hover{background:var(--accent);color:var(--bg)}
+.tbd-btn:disabled{opacity:.4;cursor:not-allowed}
+.tbd-btn-ghost{background:transparent;color:var(--text-dim);border-color:var(--border-strong)}
+
+/* Ledger continuations — split across several host elements so Present
+   can pick each risk/category tier as its own slide, without duplicating
+   a single visual list into separate copies. Only the first chunk's first
+   group should skip the usual top gap; later chunks continue the list. */
+#mitigatedB .kl-group:first-child,
+#mitigatedC .kl-group:first-child,
+#threatsMedium .kl-group:first-child,
+#threatsLow .kl-group:first-child{padding-top:28px}
+
+.critical-note{border-left:2px solid var(--warning);padding-left:18px;max-width:72ch}
+.critical-note strong{color:var(--warning);font-weight:700}
+
+/* Checklist — bespoke, hairline rows; the row itself is an interactive
+   control (click-to-toggle), so it keeps a border. No progress bar: a
+   plain mono fraction is the only "how much is done" signal. */
+.chk-wrap{display:grid;gap:10px;margin-top:8px}
+.chk-row{display:flex;align-items:flex-start;gap:14px;padding:15px 18px;border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color .25s ease,background .25s ease}
+.chk-row:hover{border-color:var(--border-strong)}
+.chk-row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chk-box{width:19px;height:19px;border:2px solid var(--border-strong);border-radius:5px;display:grid;place-items:center;flex-shrink:0;margin-top:1px;font-size:11px;color:transparent;transition:all .25s ease}
+.chk-row.checked{border-color:var(--success)}
+.chk-row.checked .chk-box{background:var(--success);border-color:var(--success);color:var(--bg)}
+.chk-label{flex:1;font-size:.92rem;line-height:1.5;color:var(--text)}
+.chk-row.checked .chk-label{color:var(--text-dim);text-decoration:line-through;text-decoration-color:var(--border-strong)}
+.chk-label code{font-family:var(--mono);font-size:.86em;color:var(--accent)}
+.chk-row .flag{flex-shrink:0;margin-top:3px}
+</style>
+
+<script data-slot="page-js">
+window.GLOSSARY = {
+  opfs: {t:'OPFS', d:'Origin Private File System — a browser-sandboxed file store. The client\u2019s SQLite database lives here; anyone with DevTools access to the device can read and edit it directly.'},
+  hlc: {t:'HLC', d:'Hybrid Logical Clock — a <code>wall_clock:counter:actor_id</code> timestamp on every field write. The server compares it per field to resolve concurrent edits deterministically, without a central sequencer.'},
+  sse: {t:'SSE', d:'Server-Sent Events — a one-way channel from server to browser. Here it carries only a cursor pointer (timestamp + subject ID), never field values, so a compromised stream leaks nothing.'},
+  actorheader: {t:'x-actor-id header', d:'Phase 1 reads actor identity from a plain request header instead of a verified token. An unknown or missing x-actor-id silently falls back to a wildcard-entitled actor_dev, and x-actor-roles: admin self-grants wildcard admin for anyone. The roles header exists as a local-testing affordance — it lets developers validate role-gated workflows with OIDC intentionally unset — and the Nuxt surface already fails closed on verified Okta OIDC. Phase 3 brings the same verified identity to the Go services in one middleware file; with the AuthZ engine beside it, test roles become seeded policy data and both the fallback and the roles header are deleted outright.'},
+  cedar: {t:'Cedar', d:'AWS\u2019s policy-as-code authorization language. Phase 3\u2019s planned replacement for the static <code>actors.json</code> file, so entitlement changes take effect without a redeploy — and where test roles live as seeded policy data once the roles header goes.'}
+};
+
+/* ── Hero stats — scale before detail ── */
+var heroStats = renderStats('#heroStats', { items: [
+  {n: 11, label: 'behaviours closed by architecture', sub: 'down from 20 — every claim re-checked against the code', tone: 'success'},
+  {n: 29, label: 'active threats tracked', sub: '7 HIGH · 9 MEDIUM · 13 LOW', tone: 'accent'},
+  {n: 23, label: 'write routes outside the sync path', sub: '9 of them with no authentication at all', tone: 'warn'}
+]});
+
+/* ── Trust boundary walkthrough ── */
+var tbdSteps = [
+  {nodes:['tbdBrowser'], flows:[], color:'accent',
+   title:'Step 1 — User edits a field',
+   body:'A reviewer changes an answer in the browser UI. The composable writes the change to the local outbox table in <button class="term" data-term="opfs">OPFS</button> SQLite. The mutation is visible locally right away — no network needed.'},
+  {nodes:['tbdOpfs'], flows:[], color:'accent',
+   title:'Step 2 — Outbox queues the event',
+   body:'The sync engine reads the outbox and queues a push event (entityType, entityID, fields[], and an <button class="term" data-term="hlc">HLC</button> timestamp) for the next push cycle.'},
+  {nodes:['tbdHeader','tbdArrow1'], flows:['tbdArrowFlow1','tbdArrowFlow2'], color:'warning',
+   title:'Step 3 — Push request crosses the boundary',
+   body:'POST /api/sync/push is called with the event batch and the <code>x-actor-id</code> header. An unrecognized or missing value isn’t rejected — it falls back to a wildcard-entitled <code>actor_dev</code>, and <code>x-actor-roles: admin</code> self-grants wildcard admin for anyone. The reverse proxy must strip and re-inject it from the session — that deployment contract is the only thing standing between this and privilege escalation.'},
+  {nodes:['tbdPush'], flows:['tbdFlowPushToAuthz'], color:'success',
+   title:'Step 4 — Input validation',
+   body:'The push handler validates: event ID, entityType against the registry, a valid operation, <code>pushedAt</code> \u2264 now+30s, <code>fields</code> as an array, \u2264 100 fields per event, \u2264 500 events per batch.'},
+  {nodes:['tbdValidation'], flows:['tbdFlowAuthzToHlc'], color:'success',
+   title:'Step 5 — Authorization check',
+   body:'<code>authz.CanEdit(ctx, a.ID, entityType, entityID)</code> runs for every event. Phase 1 is backed by <code>actors.json</code>; Phase 3 moves to Cedar. On <code>access_revoked</code> the event is rejected — the server is the only enforcement point.'},
+  {nodes:['tbdHlc'], flows:['tbdFlowHlcToAudit'], color:'success',
+   title:'Step 6 — HLC conflict resolution',
+   body:'<code>conflict.ApplyFields()</code> compares the incoming HLC to the stored one, per field. Incoming \u2265 stored wins; otherwise the field is rejected with <code>hlc_conflict</code> — last-write-wins stays deterministic across concurrent actors.'},
+  {nodes:['tbdPg','tbdAudit'], flows:['tbdFlowAuthzToPg'], color:'success',
+   title:'Step 7 — Atomic persist + audit',
+   body:'<code>SaveEvent()</code> writes the accepted event to PostgreSQL with <code>ActorID</code> stamped from the middleware context, not the payload. The audit record is written atomically with the field change — no mutation lands without a trail.'},
+  {nodes:['tbdBrowser','tbdOpfs'], flows:['tbdFlowSse'], color:'violet',
+   title:'Step 8 — SSE cursor notification',
+   body:'<code>pg_notify</code> fires on the review channel. The <button class="term" data-term="sse">SSE</button> handler dispatches a cursor pointer — no data, just a timestamp — to entitled subscribers, who call <code>pullChanges()</code> right away.'}
+];
+var tbdCur = -1;
+var tbdSvg = document.getElementById('boundaryDiagram');
+var tbdDots = document.getElementById('tbdDots');
+var tbdNext = document.getElementById('tbdNext');
+var tbdReset = document.getElementById('tbdReset');
+tbdSteps.forEach(function (_, i) {
+  var d = document.createElement('button');
+  d.className = 'tbd-dot'; d.type = 'button'; d.setAttribute('aria-label', 'Step ' + (i + 1));
+  d.addEventListener('click', function () { goTbd(i); });
+  tbdDots.appendChild(d);
+});
+function goTbd(i) {
+  tbdCur = i;
+  var s = tbdSteps[i];
+  tbdSvg.classList.add('tbd-running');
+  tbdSvg.querySelectorAll('.tbd-node').forEach(function (n) { delete n.dataset.active; });
+  tbdSvg.querySelectorAll('.tbd-flow').forEach(function (f) { f.classList.remove('tbd-flowing'); });
+  s.nodes.forEach(function (id) { var n = document.getElementById(id); if (n) n.dataset.active = s.color; });
+  s.flows.forEach(function (id) { var f = document.getElementById(id); if (f) f.classList.add('tbd-flowing'); });
+  document.getElementById('tbdTitle').textContent = s.title;
+  document.getElementById('tbdBody').innerHTML = s.body;
+  document.querySelectorAll('.tbd-dot').forEach(function (d, k) {
+    d.classList.toggle('active', k === i);
+    d.classList.toggle('done', k < i);
+  });
+  tbdNext.disabled = i >= tbdSteps.length - 1;
+  tbdReset.disabled = false;
+}
+function resetTbd() {
+  tbdCur = -1;
+  tbdSvg.classList.remove('tbd-running');
+  tbdSvg.querySelectorAll('.tbd-node').forEach(function (n) { delete n.dataset.active; });
+  tbdSvg.querySelectorAll('.tbd-flow').forEach(function (f) { f.classList.remove('tbd-flowing'); });
+  document.getElementById('tbdTitle').textContent = 'Walk the data flow \u2192';
+  document.getElementById('tbdBody').textContent = 'Click "Next step" to trace a mutation from the browser to the audit log, and see where the enforcement boundary actually sits.';
+  document.querySelectorAll('.tbd-dot').forEach(function (d) { d.classList.remove('active', 'done'); });
+  tbdNext.disabled = false; tbdReset.disabled = true;
+}
+tbdNext.addEventListener('click', function () { goTbd(Math.min(tbdCur + 1, tbdSteps.length - 1)); });
+tbdReset.addEventListener('click', resetTbd);
+
+/* ── Mitigated by architecture — grouped by STRIDE category, split across
+   three host elements so Present can pick one tier of categories at a
+   time (the same rows either way — this only affects how they're picked,
+   never duplicates them). ── */
+renderLedger('#mitigatedA', { groups: [
+  {label: 'Spoofing \u00b7 1', kind: 'done', rows: [
+    {title: 'OAuth2 redirect / code interception', sub: 'The PKCE verifier and <code>state</code> live in a sealed HttpOnly flow cookie with a 10-minute TTL; a <code>state</code> mismatch is a 400, the cookie is cleared before token exchange, and the stored redirect is open-redirect-guarded.'}
+  ]},
+  {label: 'Tampering \u00b7 2', kind: 'done', rows: [
+    {title: 'Concurrent-push field races', sub: 'The durable write is a single guarded upsert \u2014 <code>ON CONFLICT (entity_type, entity_id, field_name) DO UPDATE \u2026 WHERE EXCLUDED.hlc &gt; field_versions.hlc</code>, with an <code>actor_id</code> tiebreak \u2014 so state converges on the highest (<button class="term" data-term="hlc">HLC</button>, actor) whatever the arrival order.'},
+    {title: 'Unbounded batch payloads', sub: '500 events per batch, 100 fields per event, both checked before any storage write: the batch cap fails the whole request, the field cap fails only the offending event.'}
+  ]}
+]});
+renderLedger('#mitigatedB', { groups: [
+  {label: 'Repudiation \u00b7 1', kind: 'done', rows: [
+    {title: 'Event rows with no actor', sub: '<code>SaveEvent()</code> writes each event and its field history in one transaction, stamping <code>actor_id</code> from the server-side request context; the client\u2019s <code>actorId</code> field is never read, and <code>events.actor_id</code> is <code>NOT NULL</code>.'}
+  ]},
+  {label: 'Info disclosure \u00b7 3', kind: 'done', rows: [
+    {title: 'SSE payload leakage', sub: 'The <button class="term" data-term="sse">SSE</button> wire payload is <code>{cursor, family}</code> and nothing else; the only <code>pg_notify</code> producer is <code>notifySSE</code>, there are no NOTIFY triggers in SQL, and the hub forwards it verbatim. <code>sse_channel_alignment.fizz</code> asserts it (I3_PullRemainsAuthoritative), alongside six more invariants.'},
+    {title: 'Broad pull overfetch', sub: 'Entitlement IDs are bound parameters in the <code>events</code> <code>WHERE</code> clause on <code>(root_type, root_id)</code>, so unentitled rows never leave the database and an empty scope returns zero events. <code>root_scope_alignment.fizz</code> asserts wildcards never cross families, exact refs never leak a sibling root, and children ride with their root.'},
+    {title: 'Debug globals reachable in production', sub: '<code>runtimeConfig.public.testHelpersEnabled</code> \u2014 not <code>import.meta.dev</code> \u2014 gates <code>window.peakyDB</code> and <code>window.__peakySeed</code>. Caveat: it is computed as <code>VERCEL_ENV !== \'production\'</code>, a build-time Vercel-specific gate \u2014 tracked as a MEDIUM gap.'}
+  ]}
+]});
+renderLedger('#mitigatedC', { groups: [
+  {label: 'Denial of service \u00b7 2', kind: 'done', rows: [
+    {title: 'SSE flooding', sub: 'Push emits at most one <code>pg_notify</code> per distinct entity family (review, product, template) <em>after</em> the whole batch \u2014 never per event or per field \u2014 so notification volume tracks batches, not data size.'},
+    {title: 'Reconnect storms after a restart', sub: 'Two independent <code>BackoffGate</code> instances give SSE reconnect and sync polling separate exponential backoff with 50\u2013100% jitter, so failed clients retry at spread-out times. (<code>ConcurrencyController</code> is unrelated \u2014 it is the AIMD push batch sizer, whose spec proves the batch never reaches zero.)'}
+  ]},
+  {label: 'Elevation of privilege \u00b7 2', kind: 'done', rows: [
+    {title: 'Body-supplied actor on push', sub: 'The push handler never reads the <code>actorId</code> in the request body \u2014 every authz check, event row, and cursor write uses the middleware-resolved actor. That actor is itself only the unverified <code>x-actor-id</code> header, which is the separate HIGH gap.'},
+    {title: 'Client-side entitlement enforcement', sub: '<code>CanEdit()</code> is re-checked inside the per-event loop regardless of the client\u2019s cached snapshot, rejection is per event, and an authorizer error fails closed.'}
+  ]}
+]});
+
+/* ── Active threats — grouped by risk, split across three host elements
+   for the same reason as above (Present budget, not duplication). ── */
+renderLedger('#threatsHigh', { groups: [{label: 'HIGH \u00b7 7', kind: 'gap', rows: [
+  {title: 'S \u00b7 x-actor-id header spoofing', sub: 'An unknown or missing x-actor-id isn\u2019t rejected \u2014 Registry.Get() silently falls back to the wildcard-entitled actor_dev (review:*/product:* CanView+CanEdit); a same-network attacker gets a fully entitled actor for free.', ref: 'Phase 3'},
+  {title: 'S \u00b7 x-actor-roles: admin injection', sub: 'buildAdminActor() mints wildcard review:*/product:*/template:* CanView+CanEdit for any actor id when x-actor-roles: admin is set \u2014 same header-trust gap, no identity check at all.', ref: 'Phase 3'},
+  {title: 'R \u00b7 Actor impersonation in the audit log', sub: 'A forged x-actor-id \u2014 or one that silently falls back to actor_dev \u2014 gets credited in SaveEvent()\u2019s audit trail instead of the real actor.', ref: 'Phase 3'},
+  {title: 'E \u00b7 Admin role header injection', sub: 'x-actor-roles: admin self-grants wildcard CanView/CanEdit via buildAdminActor() for any actor id \u2014 the top privilege-escalation vector in Phase 1.', ref: 'Phase 3'},
+  {title: 'T \u00b7 HLC wallclock stuffing', sub: 'The per-field HLC that decides every conflict is never validated: ParseWire() doesn\u2019t require wallclock to be numeric and WinsOver() compares lexicographically, so a valid pushedAt paired with hlc = "zzzzzzzz:9999:actor_x" wins every future conflict on that field, permanently. The 30s future check applies to pushedAt \u2014 a different field.', ref: 'Issue #117'},
+  {title: 'E \u00b7 23 Nitro write routes outside the sync path', sub: 'They were never retired: 9 have no authentication or authorization at all (POST /api/reviews/:id/answers, POST /api/templates/:id/publish, applications/bulk/*, \u2026) and 2 authorize from an actor object in the body defaulting to admin-001 with the admin role. Bounded \u2014 they mutate in-process state, not Postgres \u2014 but that state is what the local-first fallback reads, and two of them take the audit actor from the body.', ref: 'Issues #115, #116'},
+  {title: 'I \u00b7 Directory mirror readable with no authentication', sub: 'GET /api/catalog-directory-mirror/{users,groups,components} requires no auth on either surface \u2014 the Nitro handler sets a cache header and returns the snapshot, and the Go routes carry no authz option. The full Okta mirror (names, emails, group membership) is readable by anyone who can reach it. Previously logged here as "admin-only in Phase 1", which the code never supported: UserAutocomplete.vue depends on it for ordinary member-facing product creation.', ref: 'Phase 3'}
+]}]});
+renderLedger('#threatsMedium', { groups: [{label: 'MEDIUM \u00b7 9', kind: 'progress', rows: [
+  {title: 'S \u00b7 SSE stream identity spoofing', sub: 'The SSE endpoint reads the same x-actor-id header \u2014 an unknown or forged id falls back to actor_dev, whose wildcard entitlements resolve to real channels. Tolerable only because the frame is content-free: sse_channel_alignment.fizz asserts pull remains the sole authorization boundary.', ref: 'Phase 3'},
+  {title: 'S \u00b7 No session revocation, rotation, or binding', sub: 'peaky_auth is a stateless sealed cookie with a 24h TTL, so a stolen cookie stays usable until it expires \u2014 there is no server-side revocation path, no rotation on privilege change, and no IP/UA binding. httpOnly blocks JS reads and secure applies in production.', ref: 'Unscheduled'},
+  {title: 'T \u00b7 OPFS snapshot tampering', sub: 'DevTools can edit the local SQLite file directly; the UI then reads tampered data (push still rejects bad shapes).', ref: 'Phase 4'},
+  {title: 'T \u00b7 errorMessage internal info leak', sub: 'Sync error responses may echo internal text; confirm none of it names a table or column in production.', ref: 'Phase 2'},
+  {title: 'T \u00b7 State and audit are not written atomically', sub: 'field_versions is committed one autocommit per field in conflict.ApplyFields() before SaveEvent()\u2019s transaction opens, so a mid-event failure leaves live field values with no events row, no pg_notify, and the event reported to the client as rejected. repo.SyncRepo exposes no transaction handle, so no caller can span the two.', ref: 'Phase 2'},
+  {title: 'R \u00b7 Replay duplicate events', sub: 'Dedup keys on event ID, not content \u2014 a replay with a new ID but identical fields still writes a duplicate audit row and fires a second pg_notify. ON CONFLICT (id) DO NOTHING also means a replay by a different actor keeps the first actor on the events row while field_versions carries the second. sync_engine_push_pull.fizz asserts the field data itself is a no-op.', ref: 'Phase 2'},
+  {title: 'I \u00b7 Full OPFS copy on device theft', sub: 'The local SQLite is readable to anyone with device or DevTools access; OS-level disk encryption is the only control today.', ref: 'Phase 4'},
+  {title: 'I \u00b7 Debug globals gate is Vercel-specific', sub: 'testHelpersEnabled is computed at build time as VERCEL_ENV !== "production", so any build where VERCEL_ENV is unset \u2014 local make preview, CI, a container or self-hosted Nitro deploy \u2014 ships window.peakyDB and window.__peakySeed enabled regardless of NODE_ENV. The Go services deploy behind ALB, not Vercel.', ref: 'Unscheduled'},
+  {title: 'E \u00b7 Entitlement forgery via push', sub: 'access_revoked only fires if actors.json is current \u2014 a stale registry lets a push through as authorized; the registry is loaded once at startup.', ref: 'Phase 3'},
+]}]});
+renderLedger('#threatsLow', { groups: [{label: 'LOW \u00b7 13', kind: 'next', rows: [
+  {title: 'S \u00b7 CSRF rests on a single control', sub: 'There is no CSRF token and no Origin/Sec-Fetch-Site check anywhere \u2014 nuxt-security\u2019s csrf option is left at its false default. Cross-site forgery against cookie-authenticated Nitro routes is blocked only by peaky_auth\u2019s SameSite=Lax plus the absence of CORS allow-origin headers, and GET /auth/okta/logout is a state-changing GET that Lax does send on top-level navigation.', ref: 'Unscheduled'},
+  {title: 'T \u00b7 Crafted oversized field value', sub: 'Field values are opaque blobs with shape validation but no size cap; a large value could strain storage.', ref: 'Phase 2'},
+  {title: 'R \u00b7 No read-level audit trail', sub: 'GET /api/sync/pull is not logged \u2014 an actor can read everything entitled without leaving a trace.', ref: 'Phase 4'},
+  {title: 'R \u00b7 Fallback identity is a hardcoded named admin', sub: 'DEFAULT_LIFECYCLE_ACTOR = { id: "heitorl", roles: ["admin"] } attributes unauthenticated dev/test/E2E writes to a real person with admin roles rather than to a system actor. Reachable only when OIDC is unset; production throws 401 instead.', ref: 'Unscheduled'},
+  {title: 'I \u00b7 Bootstrap entitlement snapshot readable', sub: 'The client caches its entitlement snapshot in OPFS; device access reveals which entities an actor may view.', ref: 'Phase 4'},
+  {title: 'D \u00b7 OPFS quota exhaustion', sub: 'Browsers cap OPFS near 60% of free disk; unbounded event history has no server-side purge policy (the client purges local events older than 14 days).', ref: 'Phase 3'},
+  {title: 'D \u00b7 Push rate limiting absent', sub: 'No explicit limit beyond the 500-event batch cap; Lambda concurrency is the only soft ceiling on load.', ref: 'Phase 2'},
+  {title: 'D \u00b7 Offline coverage is narrower than local-first implies', sub: 'An already-loaded tab keeps reading and editing local data, but pull, bootstrap, entitlement refresh and SSE are blocked alongside push; template and question content is server-only; a cold load needs the network because the service worker precaches no application code; and useSubjectReviews re-throws non-404 errors, hiding local reviews on any network failure.', ref: 'Unscheduled'},
+  {title: 'T \u00b7 .envrc auto-bootstraps on cd', sub: 'Entering the repo auto-runs agent-marketplace sync and make dev \u2014 a developer machine fetches and executes from the harness repo with no review gate. Accepted for DX.', ref: 'Accepted'},
+  {title: 'T \u00b7 Formal verification gates absent from CI', sub: 'make verify is developer-machine-only \u2014 the FizzBee runner isn\u2019t approved for GitLab CI (issue #29); two specs are proven only via the fizzbee.io playground, and every spec assumes an honest client.', ref: 'Issue #29'},
+  {title: 'T \u00b7 Prose claims are not drift-guarded', sub: 'threat-model-drift.test.ts pins paths, caps and entity types, but only asserts that this deck\u2019s files exist \u2014 which is exactly how 9 of 20 mitigation claims here drifted from the code undetected until the 29 Jul 2026 audit.', ref: 'Unscheduled'},
+  {title: 'T \u00b7 FakeSyncRepo skips the HLC guard', sub: 'FakeSyncRepo.UpsertFieldVersion overwrites unconditionally, so deleting the WHERE clause that makes the real upsert safe would not fail make test \u2014 only the Postgres integration test covers it.', ref: 'Unscheduled'},
+  {title: 'T \u00b7 CI governance runs via external GitLab components', sub: 'components/ci-automation/{mr,repo}@0.0.2 act with CI_AUTOMATION_TOKEN (api) and CI_AUTOMATION_CHANGELOG_TOKEN (api + write_repository) \u2014 a compromised component version can push branches and tamper with MR/changelog content, but cannot merge: branch protection requires a resilience-Taskforce human +1, any push makes approvals stale, and bot approvals (e.g. CodeRabbit) carry no weight. Residual risk is a poisoned diff getting past a human reviewer.', ref: 'Pin + review'}
+]}]});
+
+var jwtBeforeAfter = renderBeforeAfter('#jwtBeforeAfter', {
+  aspectLabel: 'Gap', beforeLabel: 'Phase 1 \u2014 today', afterLabel: 'Phase 3 \u2014 JWT + AuthZ engine',
+  rows: [
+    {aspect: 'Actor identity (S)', before: 'unknown/missing x-actor-id silently falls back to wildcard-entitled actor_dev', after: 'Okta JWT validated in <code>middleware.Actor()</code>; fallback deleted', flag: {kind: 'done', label: 'ceases'}},
+    {aspect: 'Admin role claim (E)', before: 'x-actor-roles: admin self-grants wildcard admin for any actor id', after: 'roles header deleted; roles come from verified JWT claims only', flag: {kind: 'done', label: 'ceases'}},
+    {aspect: 'Audit attribution (R)', before: 'a forged or fallback actor-id gets credited in the audit log', after: 'a JWT-verified actor ID is the only thing SaveEvent() can stamp', flag: {kind: 'done', label: 'ceases'}},
+    {aspect: 'Why the header survived', before: 'the only way to exercise role-gated flows against local services with no IdP', after: 'test roles become seeded policy data \u2014 the affordance loses its reason to exist', flag: {kind: 'done', label: 'replaced'}}
+  ]
+});
+
+/* ── Roadmap — same 7 gaps, grouped by the phase that closes them. The
+   ref column repeats only the risk level (set in Active Threats), never
+   the full threat description \u2014 "why deferred" is the new fact here. ── */
+renderLedger('#roadmapLedger', { groups: [
+  {label: 'Phase 2 \u00b7 2', kind: 'next', rows: [
+    {title: 'No per-field value size cap', sub: 'Needs a schema migration on field_versions before a limit can be enforced.', ref: 'LOW risk'},
+    {title: 'No content-level push idempotency key', sub: 'A content-hash key has to be computed client-side in the outbox before replays can be caught by meaning, not by event ID.', ref: 'MEDIUM risk'}
+  ]},
+  {label: 'Phase 3 \u00b7 3', kind: 'next', rows: [
+    {title: 'Header-based actor identity', sub: 'Nuxt Okta OIDC is live and fails closed; the Go services still take header identity and run only behind an internal network boundary until the JWT swap.', ref: 'HIGH risk'},
+    {title: 'Admin role header', sub: 'Still the only way to exercise role-gated flows without an IdP, so the deployment proxy must strip it until the AuthZ engine turns test roles into seeded policy data.', ref: 'HIGH risk'},
+    {title: 'Static actors.json entitlement store', sub: 'The <button class="term" data-term="cedar">Cedar</button> authorization service isn\u2019t provisioned yet \u2014 the same landing that turns test roles into policy data and retires the roles header.', ref: 'MEDIUM risk'}
+  ]},
+  {label: 'Phase 4 \u00b7 2', kind: 'next', rows: [
+    {title: 'OPFS data unencrypted at rest', sub: 'The wa-sqlite encrypted driver needs evaluation before it ships.', ref: 'MEDIUM risk'},
+    {title: 'Pull requests not logged', sub: 'Read logging at this volume needs a sampling strategy first.', ref: 'LOW risk'}
+  ]},
+  {label: 'Unscheduled \u00b7 3', kind: 'gap', rows: [
+    {title: 'Nitro write surface', sub: 'Waiting on a decision, not a dependency: delete the legacy routes, or put all 23 behind getLifecycleActor() plus per-resource authz and drop the body-actor path.', ref: 'HIGH risk'},
+    {title: 'HLC wallclock validation', sub: 'No blocker \u2014 reject non-numeric or far-future wallclocks in ParseWire(); the only cost is deciding the skew tolerance and re-seeding tests that currently rely on year-2286 HLCs.', ref: 'HIGH risk'},
+    {title: 'Session revocation and the CSRF second control', sub: 'Both need a shape decision first: a session registry (or short-lived tokens) for revocation, and an Origin check or double-submit token for defence in depth.', ref: 'MED / LOW risk'}
+  ]}
+]});
+
+/* ── Security review checklist — bespoke: click-to-toggle rows,
+   localStorage persistence, and a plain mono fraction (no progress bar,
+   per the kit's design rules). ── */
+var checklistItems = [
+  {label: 'Verify the reverse proxy / ALB strips <code>x-actor-id</code>, <code>x-actor-email</code>, <code>x-actor-name</code>, and <code>x-actor-roles</code> before forwarding to Go services', tag: 'S \u00b7 HIGH', kind: 'gap'},
+  {label: 'Confirm <code>x-actor-roles: admin</code> cannot reach the service from the public internet \u2014 check WAF rules and the ALB header policy', tag: 'E \u00b7 HIGH', kind: 'gap'},
+  {label: 'Review <code>actors.json</code> for stale or over-privileged entries; confirm the redeploy process when entitlements change', tag: 'E \u00b7 MEDIUM', kind: 'progress'},
+  {label: 'Audit <code>POST /api/sync/push</code> error responses \u2014 confirm no internal table or column name is surfaced in a rejection reason', tag: 'T \u00b7 MEDIUM', kind: 'progress'},
+  {label: 'Confirm <code>GET /api/catalog-directory-mirror/users</code> enforces admin-only scope in the deployed environment', tag: 'I \u00b7 MEDIUM', kind: 'progress'},
+  {label: 'Check that OPFS is reachable only within the app\u2019s own origin \u2014 no cross-origin OPFS access path in the Nuxt config', tag: 'I \u00b7 MEDIUM', kind: 'progress'},
+  {label: 'Validate the Okta OIDC flow cookie (<code>peaky_oidc_flow</code>) is HttpOnly; Secure; SameSite=Lax in production, and that <code>NODE_ENV=production</code> at deploy time', tag: 'S \u00b7 MEDIUM', kind: 'progress'},
+  {label: 'Review the Phase 3 migration plan \u2014 confirm JWT validation in <code>middleware/actor.go</code> is the only change point, with no distributed auth logic needed', tag: 'S/E \u00b7 PLAN', kind: 'next'},
+  {label: 'Confirm <code>tests/guards/threat-model-drift.test.ts</code> is green \u2014 it pins every mechanically checkable fact on this page (paths, entity types, caps, limits) to the code that owns it', tag: 'Meta \u00b7 CI', kind: 'next'},
+  {label: 'Decide the 23 Nitro write routes: delete them, or gate all of them on <code>getLifecycleActor()</code> plus per-resource authz \u2014 and remove the body-supplied actor path in <code>DELETE</code>/<code>PATCH /api/reviews/:id</code>', tag: 'E \u00b7 HIGH', kind: 'gap'},
+  {label: 'Reject non-numeric and far-future HLC wallclocks in <code>conflict.ParseWire()</code> \u2014 today a stuffed wallclock wins every future conflict on a field', tag: 'T \u00b7 HIGH', kind: 'gap'},
+  {label: 'Confirm the production build ships <code>testHelpersEnabled: false</code> \u2014 the gate reads <code>VERCEL_ENV</code>, so a non-Vercel deploy enables <code>window.peakyDB</code> regardless of <code>NODE_ENV</code>', tag: 'I \u00b7 MEDIUM', kind: 'progress'}
+];
+function renderChecklist(sel, items) {
+  var host = kitMount(sel);
+  host.classList.add('chk-wrap');
+  items.forEach(function (it, i) {
+    var row = kitEl('div', 'chk-row');
+    row.dataset.id = 'c' + (i + 1);
+    row.tabIndex = 0; row.setAttribute('role', 'checkbox'); row.setAttribute('aria-checked', 'false');
+    row.innerHTML = '<span class="chk-box">\u2713</span><span class="chk-label">' + it.label + '</span>' + kitFlag({kind: it.kind, label: it.tag});
+    function toggle() {
+      row.classList.toggle('checked');
+      row.setAttribute('aria-checked', row.classList.contains('checked') ? 'true' : 'false');
+      try { localStorage.setItem('stride-check-' + row.dataset.id, row.classList.contains('checked') ? '1' : '0'); } catch (e) {}
+      updateChecklistProgress();
+    }
+    row.addEventListener('click', toggle);
+    row.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+    host.appendChild(row);
+  });
+}
+function updateChecklistProgress() {
+  var total = document.querySelectorAll('.chk-row').length;
+  var done = document.querySelectorAll('.chk-row.checked').length;
+  document.getElementById('checklistProgress').textContent = done + ' / ' + total + ' reviewed';
+}
+renderChecklist('#checklistWrap', checklistItems);
+document.querySelectorAll('.chk-row').forEach(function (el) {
+  var v = null;
+  try { v = localStorage.getItem('stride-check-' + el.dataset.id); } catch (e) {}
+  if (v === '1') { el.classList.add('checked'); el.setAttribute('aria-checked', 'true'); }
+});
+updateChecklistProgress();
+
+/* ── Present mode ── */
+initPresent([
+  {pick: ['#top']},
+  {kicker: '01 \u00b7 Trust boundary',
+   pick: ['#boundaryHead']},
+  {kicker: '01 \u00b7 Trust boundary', title: 'Walk the data flow', layout: 'diagram',
+   pick: ['#boundaryDiagram', '#tbdStepArea'],
+   steps: {count: tbdSteps.length + 1, go: function (i) { if (i === 0) resetTbd(); else goTbd(i - 1); }}},
+  {kicker: '02 \u00b7 Closed by architecture',
+   pick: ['#mitigatedHead']},
+  {kicker: '02 \u00b7 Closed by architecture', title: 'Spoofing & tampering \u2014 3 rows',
+   pick: ['#mitigatedA']},
+  {kicker: '02 \u00b7 Closed by architecture', title: 'Repudiation & disclosure \u2014 4 rows',
+   pick: ['#mitigatedB']},
+  {kicker: '02 \u00b7 Closed by architecture', title: 'Availability & privilege \u2014 4 rows',
+   pick: ['#mitigatedC']},
+  {kicker: '03 \u00b7 Active threats',
+   pick: ['#threatsHead']},
+  {kicker: '03 \u00b7 Active threats', title: 'HIGH \u2014 7 tracked',
+   pick: ['#threatsHigh']},
+  {kicker: '03 \u00b7 Active threats', title: 'MEDIUM \u2014 9 tracked',
+   pick: ['#threatsMedium']},
+  {kicker: '03 \u00b7 Active threats', title: 'LOW \u2014 13 tracked',
+   pick: ['#threatsLow']},
+  {kicker: '03 \u00b7 Active threats', title: 'Phase 3 deletes the header path',
+   pick: ['#threatsCritical', '#jwtBeforeAfter', '#threatsFixNote']},
+  {kicker: '04 \u00b7 Roadmap',
+   pick: ['#roadmapHead', '#roadmapLedger']},
+  {kicker: '04 \u00b7 Roadmap', title: 'The facts announce themselves',
+   pick: ['#driftLoopIntro', '#driftLoopDemo', '#driftLoopNote']},
+  {kicker: '05 \u00b7 Security review checklist',
+   pick: ['#checklistHead', '#checklistWrap']}
+]);
+</script>

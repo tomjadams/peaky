@@ -1,0 +1,399 @@
+<!-- CI Automation Toolkit — editorial cut.
+     Assemble: python3 .factory/skills/explainer/assemble.py explainers/_sources/ci-automation.html -->
+
+<p style="font:15px/1.6 -apple-system,sans-serif;max-width:640px;margin:40px auto;padding:18px 22px;border:1px solid #b45309;color:#78350f;background:#fffbeb">
+  <strong>Note:</strong> this is an <code>/explainer</code> content source, not a finished page —
+  assemble it first (see <code>.factory/skills/explainer/README.md</code>):<br>
+  <code>python3 .factory/skills/explainer/assemble.py explainers/_sources/ci-automation.html</code>
+</p>
+
+<script type="application/json" data-slot="meta">
+{
+  "title": "Governance as events — the CI Automation Toolkit",
+  "style": "editorial",
+  "components": ["ledger", "before-after", "stepper", "flow", "filetree"],
+  "output": "explainers/ci-automation-explainer.html",
+  "md": false,
+  "thesis": "Features subscribe to GitLab events via RUNS_ON and return the writes they want; the framework runs them in parallel and applies every action in one auditable write seam, so adopting a hosted webhook server later is an adapter swap, not a rewrite.",
+  "slides": [
+    {"kicker": "Peaky · CI Automation Toolkit", "title": "Governance as events", "point": "features subscribe via RUNS_ON and return actions; the framework applies every write in one auditable seam"},
+    {"kicker": "01 · Before", "title": "The visibility problem", "point": "GitLab reports pass/fail per job, not per check — one red circle can hide which of several checks actually failed"},
+    {"kicker": "02 · The architecture", "title": "One entry point, pure features, one write seam", "point": "app.py builds a typed Event, discovers features, and runs the subscribed ones through a thread pool; nothing mutates until the pool joins"},
+    {"kicker": "02 · The architecture", "title": "What the governance comment looks like", "point": "one idempotent comment per pipeline, edited in place, with a per-check pass/fail table"},
+    {"kicker": "Dry run", "title": "Preview every action with one env var", "point": "reads still run so the verdict is real; every write is gated behind the same seam dry-run turns off"},
+    {"kicker": "03 · Feature anatomy", "title": "Four pieces compose every feature", "point": "config model owns the schema, Feature[T] owns the contract, register() makes it discoverable, discover_features() fills the registry"},
+    {"kicker": "04 · Adding a feature", "title": "Adding a feature, step by step", "point": "a config block, a module with RUNS_ON and a pure run(), a test with the harness, then make check"},
+    {"kicker": "05 · Trade-offs", "title": "Every design choice had an alternative", "point": "purity, event fidelity, and the free dry run all trace back to one rule: features return intent, they never mutate"},
+    {"kicker": "05 · Trade-offs", "title": "The reporting and plumbing decisions", "point": "JUnit for GitLab-native visibility, an edited-in-place comment, a per-feature timeout, and one typed context"},
+    {"kicker": "06 · Project layout", "title": "One file per concern", "point": "the client adapter is the single port to GitLab — every feature stays isolated and testable behind it"},
+    {"kicker": "07 · Rollout phases", "title": "Peaky first, then RTF, then wider", "point": "each phase is an adapter swap, not a rewrite — the Event, Feature, actions, and client are unchanged"}
+  ],
+  "facts": [
+    "Features subscribe to events via a RUNS_ON set; the dispatcher only runs a feature for events in that set and records the rest as skipped",
+    "Features are pure: run(ctx) reads MR state and returns actions (AddLabel, RemoveLabel, SetTitle, PostComment, AssignUser); the framework applies every returned action in one serial phase after the thread pool joins",
+    "Concurrency is an implementation detail, not the model: a ThreadPoolExecutor runs I/O-bound governance checks in parallel because purity makes it safe, avoiding 10-30s of per-job container/Python cold start for under 1s of work",
+    "CI_AUTOMATION_DRY_RUN=1 previews a run for real — reads still execute so the verdict is genuine — then gates the one write seam so nothing mutates; features never branch on it",
+    "Two reporting channels: a JUnit XML artifact GitLab parses natively for per-check pipeline visibility, and an idempotent HTML-marked MR comment edited in place every run",
+    "The Event type mirrors GitLab's webhook payload 1:1 via Pydantic AliasPath aliases; the CI-env adapter today and a future webhook adapter both produce the same Event, so Feature/RUNS_ON/actions/client never change",
+    "Rollout: Peaky only today (scripts/ci/, .pre stage) -> a versioned GitLab CI component for RTF projects -> a hosted webhook server for wider adoption"
+  ],
+  "links": [{"label": "scripts/ci/README.md — full reference", "href": "../scripts/ci/README.md"}]
+}
+</script>
+
+<template data-slot="content">
+<!-- ── HERO ── -->
+<section id="top" class="hero">
+  <div class="reveal">
+    <div class="hero-kicker">Peaky · CI Automation Toolkit</div>
+    <h1 class="display">Governance<br><em>as events.</em></h1>
+    <p class="lede">Features subscribe to GitLab events via <code>RUNS_ON</code> and return the writes they want. The framework reads, runs them in parallel, and applies every action in one auditable write seam. Adopt it as a CI job today; grow into a hosted webhook server later by swapping one adapter — the core never changes.</p>
+    <p class="gloss-hint">New to the toolkit? <button class="term" data-term="gloss">Dotted terms</button> open a plain-English definition.</p>
+    <details class="tldr">
+      <summary>TL;DR</summary>
+      <div class="tldr-body">
+        <p><em>Event-driven plugins.</em> Each feature subscribes via <code>RUNS_ON</code>. Adding one is a config model + <code>RUNS_ON</code> + a pure <code>run()</code> — nothing else to wire.</p>
+        <p><em>Pure features return actions.</em> They read state and return <code>AddLabel(…)</code> / <code>SetTitle(…)</code>; the framework applies them in one serial write seam after the pool joins. Purity is what makes parallel safe.</p>
+        <p><em>Grows without a rewrite.</em> The typed <button class="term" data-term="event">Event</button> is GitLab-faithful. Env today, webhook later is an adapter swap — Event, Feature, <code>RUNS_ON</code>, actions, and client are unchanged.</p>
+        <p><em>Dry run is first-class.</em> <code>CI_AUTOMATION_DRY_RUN=1</code> previews exactly what would happen — reads run, nothing mutates, exit 0.</p>
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- ── 01 · THE PROBLEM ── -->
+<section id="problem">
+  <div class="reveal" id="problemHead">
+    <span class="eyebrow">01 · Before</span>
+    <h2 class="sec-title">The visibility problem</h2>
+    <p class="sec-sub">GitLab CI gives you a job, not a step. When governance checks live inside one job, the pipeline can't tell you which one broke — and running them as separate jobs pays a cold-start tax for &lt;1s of work each.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="problemList"></div>
+</section>
+
+<!-- ── 02 · ARCHITECTURE ── -->
+<section id="architecture">
+  <div class="reveal" id="archHead">
+    <span class="eyebrow">02 · The architecture</span>
+    <h2 class="sec-title">One entry point, pure features, <em>one write seam</em></h2>
+    <p class="sec-sub">A single entry point builds a typed <button class="term" data-term="event">Event</button>, discovers every feature, and runs the ones that subscribe to it through a <button class="term" data-term="threadpool">ThreadPoolExecutor</button>. Each feature gets a <button class="term" data-term="featurecontext">FeatureContext</button> and stays pure — it reads state and returns <button class="term" data-term="actions">actions</button>; the framework applies every one of them in a single serial phase after the pool joins.</p>
+  </div>
+  <figure class="reveal reveal-delay-1 artifact" id="archFlow" aria-label="the ci-automation pipeline, from CI inputs to outputs"></figure>
+  <p class="muted-note reveal reveal-delay-1">Concurrency is in service of the model, not the headline — it's safe only because a feature never mutates mid-run, so two running at once can't race on MR state.</p>
+
+  <div class="reveal reveal-delay-2 artifact" id="archComment">
+    <span class="eyebrow" style="display:block;margin-bottom:14px">Artifact · Governance MR comment</span>
+    <div class="gr-comment">
+      <div class="gr-head">
+        <div class="gr-avatar">CI</div>
+        <div class="gr-meta">
+          <span class="gr-author">ci-automation bot</span>
+          <span class="gr-time">commented 2 minutes ago · edited in place</span>
+        </div>
+      </div>
+      <div class="gr-marker">Hidden marker: <code>&lt;!-- ci-automation:governance:v1 --&gt;</code></div>
+      <div class="gr-body">
+        <div class="gr-table">
+          <div class="gr-th">Check</div><div class="gr-th">Status</div><div class="gr-th">Detail</div>
+          <div class="gr-td"><code>size</code></div>
+          <div class="gr-td"><span class="gr-status pass"><i></i>pass</span></div>
+          <div class="gr-td">size/M (142 lines)</div>
+          <div class="gr-td"><code>mr_title</code></div>
+          <div class="gr-td"><span class="gr-status fail"><i></i>fail</span></div>
+          <div class="gr-td"><b>Title does not use conventional commit format</b></div>
+        </div>
+        <div class="gr-notes">
+          <p>Expected: <code>type(scope): description</code></p>
+          <p>Allowed types: <code>feat</code>, <code>fix</code>, <code>docs</code>, <code>chore</code></p>
+        </div>
+        <p class="gr-summary"><b>1 of 2 checks failed.</b></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── DRY RUN ── -->
+<section id="dryrun">
+  <div class="reveal" id="dryrunHead">
+    <span class="eyebrow">First-class · Dry run</span>
+    <h2 class="sec-title">One env var, a full preview</h2>
+    <p class="sec-sub">Set <code>CI_AUTOMATION_DRY_RUN=1</code> and the toolkit runs for real, then stops before anything is written.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact pair-grid" id="dryrunBody">
+    <div class="aside-col">
+      <p><em>Reads still execute</em>, so the verdict in the log is the true verdict — and the run doubles as a token and permissions check. <em>Nothing mutates.</em></p>
+      <p>It's effectively free: because features are pure and every write funnels through one seam, dry run just gates that seam. Features never learn about it.</p>
+    </div>
+    <div id="dryrunList"></div>
+  </div>
+</section>
+
+<!-- ── 03 · FEATURE ANATOMY ── -->
+<section id="anatomy">
+  <div class="reveal" id="anatomyHead">
+    <span class="eyebrow">03 · Feature anatomy</span>
+    <h2 class="sec-title">Four pieces compose every feature</h2>
+    <p class="sec-sub">The config model owns the schema; the base class owns the contract — <code>RUNS_ON</code> plus a pure <code>run()</code>; the register call makes it discoverable; discovery fills the registry automatically, closing the loop back to the next dispatch.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="anatomyStepper"></div>
+</section>
+
+<!-- ── 04 · WALKTHROUGH ── -->
+<section id="walkthrough">
+  <div class="reveal" id="walkthroughHead">
+    <span class="eyebrow">04 · Adding a feature</span>
+    <h2 class="sec-title">The conventional-commit check, end to end</h2>
+    <p class="sec-sub">Four steps, every file you touch, what the output looks like.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="walkthroughStepper"></div>
+</section>
+
+<!-- ── 05 · TRADE-OFFS ── -->
+<section id="tradeoffs">
+  <div class="reveal" id="tradeoffsHead">
+    <span class="eyebrow">05 · Trade-offs</span>
+    <h2 class="sec-title">Every design choice had an alternative</h2>
+    <p class="sec-sub">The rationale column is why the toolkit looks the way it does.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="tradeoffsCore"></div>
+  <div class="reveal reveal-delay-2 artifact" id="tradeoffsOps"></div>
+</section>
+
+<!-- ── 06 · PROJECT LAYOUT ── -->
+<section id="layout">
+  <div class="reveal" id="layoutHead">
+    <span class="eyebrow">06 · Project layout</span>
+    <h2 class="sec-title">One file per concern</h2>
+    <p class="sec-sub">The client adapter is the single port to GitLab — anything that talks to GitLab goes through <code>GitLabClient</code>, so features stay isolated and testable.</p>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="layoutTree"></div>
+  <p class="muted-note reveal reveal-delay-1">Tests live in <code>tests/unit/</code> with doubles for the GitLab client — no I/O, fast, deterministic. The <code>FeatureTestHarness</code> provides a fluent builder so feature authors write 4-line tests, not 12 lines of mock setup.</p>
+</section>
+
+<!-- ── 07 · ROADMAP ── -->
+<section id="roadmap">
+  <div class="reveal" id="roadmapHead">
+    <span class="eyebrow">07 · Rollout phases</span>
+    <h2 class="sec-title">Not everything at once</h2>
+    <p class="sec-sub">Three phases, each with a clear boundary. <span class="data-stamp">3 phases · phase 1 active</span></p>
+  </div>
+  <figure class="reveal reveal-delay-1 artifact" id="roadmapFlow" aria-label="three rollout phases: Peaky first, RTF first, wider"></figure>
+  <div class="reveal reveal-delay-2 artifact" id="roadmapList"></div>
+</section>
+
+<p class="muted-note reveal" style="max-width:1100px;margin:0 auto 90px">Governance as events — adopt as a CI job now, grow into a webhook server later. Phase 1 of 3.</p>
+</template>
+
+<style data-slot="page-css">
+/* archFlow has 6 stations, two with long real identifiers
+   (discover_features(), ThreadPoolExecutor) that overlap at the flow
+   component's default 23px label size — shrink just this diagram's
+   labels rather than shorten accurate names or widen the canvas (which
+   would push the diagram's own smaller when/sub text below the 11px
+   floor instead). */
+#archFlow .kf-label{font-size:19px}
+
+/* Faux GitLab MR comment — a live-demo surface, exempt from the card rule */
+.gr-comment{border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--surface);overflow:hidden;max-width:640px}
+.gr-head{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border)}
+.gr-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--violet));display:grid;place-items:center;color:#fff;font-family:var(--mono);font-size:.66rem;font-weight:700;flex-shrink:0}
+.gr-meta{display:flex;flex-direction:column;gap:2px;min-width:0}
+.gr-author{font-size:.86rem;font-weight:600;color:var(--text)}
+.gr-time{font-family:var(--mono);font-size:.64rem;color:var(--text-faint);letter-spacing:.02em}
+.gr-marker{padding:9px 18px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:.62rem;color:var(--text-faint)}
+.gr-marker code{color:var(--text-dim)}
+.gr-body{padding:18px}
+.gr-table{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,.5fr) minmax(0,1.6fr);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.gr-th{font-family:var(--mono);font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-faint);padding:9px 12px;background:var(--bg);border-bottom:1px solid var(--border)}
+.gr-td{padding:10px 12px;font-size:.8rem;color:var(--text-dim);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.gr-td code{font-family:var(--mono);font-size:.85em;color:var(--text)}
+.gr-td b{color:var(--text);font-weight:600}
+.gr-status{font-family:var(--mono);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.gr-status i{width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0}
+.gr-status.pass{color:var(--success)}.gr-status.pass i{background:var(--success)}
+.gr-status.fail{color:var(--error)}.gr-status.fail i{background:var(--error)}
+.gr-table>*:nth-last-child(-n+3){border-bottom:0}
+.gr-notes{margin-top:14px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg)}
+.gr-notes p{font-size:.78rem;color:var(--text-dim);line-height:1.6}
+.gr-notes p+p{margin-top:4px}
+.gr-notes code{font-family:var(--mono);font-size:.78rem;color:var(--accent)}
+.gr-summary{margin-top:12px;font-size:.8rem;color:var(--text-dim)}
+.gr-summary b{color:var(--error);font-weight:600}
+@media(max-width:560px){.gr-table{grid-template-columns:1fr}.gr-th{display:none}}
+</style>
+
+<script data-slot="page-js">
+window.GLOSSARY = {
+  gloss: { t:'Glossary', d:'Exactly like this — every dotted term on this page opens a short, no-prior-context definition. Click anywhere else (or press Esc) to close.' },
+  junit: { t:'JUnit XML', d:'A standard XML format for reporting test results. GitLab parses JUnit artifacts natively and surfaces per-test-case pass/fail in the pipeline view, the MR widget, and the merge request reports tab — the GitLab equivalent of GitHub Actions per-step visibility.' },
+  threadpool: { t:'ThreadPoolExecutor', d:'A Python concurrent.futures primitive that runs callables in a pool of worker threads. Ideal for I/O-bound work like GitLab API calls, where the GIL is not the bottleneck and threads give real concurrency without async ceremony.' },
+  featurecontext: { t:'FeatureContext', d:'The execution context handed to every feature: wraps the shared GitLabClient, the Event, and the MR ref. Provides read helpers (ctx.get_mr(), ctx.linked_issues(), ctx.issue_has_epic()) and result factories (ctx.ok(), ctx.fail()) that carry actions — a feature focuses on governance, not plumbing, and never reaches the client directly.' },
+  pydantic: { t:'Pydantic', d:'A Python data-validation library. Each feature defines a Pydantic model for its YAML config block; the framework validates the YAML against it automatically and wraps ValidationError in CiAutomationError. The model is the single source of truth for the schema. Events and actions are Pydantic models too.' },
+  collectreport: { t:'collect-and-report', d:'Every feature runs to completion regardless of whether earlier features failed. Results are collected first, then reported together. No fail-fast: a broken title check does not skip the size check, so you see every problem in one cycle.' },
+  event: { t:'Event', d:'A typed value mirroring GitLab\u2019s webhook payload 1:1 via Pydantic AliasPath aliases — friendly field names (event.title) on the left, the exact GitLab source location (object_attributes.title) on the right. Nothing GitLab cannot emit is invented. The CI env is a lossy adapter producing the same Event a future webhook server would.' },
+  actions: { t:'actions', d:'The writes a feature wants, returned (not performed) as a list: AddLabel, RemoveLabel, SetTitle, PostComment — explicit Pydantic models where the name is the behaviour. Because features run concurrently, mutating mid-run could let another feature read a half-applied write; instead the framework applies all returned actions in one serial phase after the pool joins.' }
+};
+
+/* ── tiny syntax highlight — reuses the kit's y-key/y-str/y-num/y-com tokens ── */
+function hlEsc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function hlWrap(html, toks){ return html.replace(/\x00(\d+)\x00/g, function(_, i){ return toks[+i]; }); }
+function hlPy(code){
+  var html = hlEsc(code), toks = [];
+  function T(cls, m){ toks.push('<span class="' + cls + '">' + m + '</span>'); return '\x00' + (toks.length - 1) + '\x00'; }
+  html = html.replace(/(#[^\n]*)/g, function(m){ return T('y-com', m); });
+  html = html.replace(/("(?:[^"\\]|\\.)*")/g, function(m){ return T('y-str', m); });
+  var kws = ['def','class','return','if','else','not','in','import','from'];
+  html = html.replace(new RegExp('\\b(' + kws.join('|') + ')\\b', 'g'), '<span class="y-key">$1</span>');
+  html = html.replace(/\b(\d+)\b/g, '<span class="y-num">$1</span>');
+  return hlWrap(html, toks);
+}
+function hlYaml(code){
+  var html = hlEsc(code), toks = [];
+  function T(cls, m){ toks.push('<span class="' + cls + '">' + m + '</span>'); return '\x00' + (toks.length - 1) + '\x00'; }
+  html = html.replace(/^(\s*)([\w-]+)(:)/gm, function(m, p1, p2, p3){ return p1 + T('y-key', p2) + p3; });
+  html = html.replace(/\b(true|false)\b/g, '<span class="y-bool">$1</span>');
+  return hlWrap(html, toks);
+}
+
+/* ── Problem — three concrete pain points ── */
+renderLedger('#problemList', { numbered: true, groups: [{ rows: [
+  {title:'Job is the unit, not the step', sub:'GitLab\u2019s pipeline view reports pass/fail at the job level. A job that runs five checks shows one green or red circle — you can\u2019t see which one failed without opening the log.'},
+  {title:'Sequential checks, linear latency', sub:'Checks run one after another inside a script and the job\u2019s wall time is the sum. Six checks at 2s each is 12s of pipeline that could be 2s.'},
+  {title:'Failures hide in the log', sub:'A red job means expanding raw output and scanning for the line that broke — no structured, per-check report the MR widget can surface.'}
+] }] });
+
+/* ── Architecture — inputs to outputs, one write seam ── */
+var archFlow = renderFlow('#archFlow', {
+  ariaLabel: 'the ci-automation pipeline',
+  caption: 'pure reads in parallel, <b>one writer</b> after the pool joins',
+  items: [
+    {type:'station', kind:'accent', when:'INPUTS', label:'CI job + config + env', subs:['.gitlab-ci.yml \u00b7 ci-automation.yaml','PROJECT_ID \u00b7 MR_IID \u00b7 TOKEN']},
+    {type:'station', label:'app.py', sub:'builds the Event'},
+    {type:'station', label:'discover_features()', sub:'pkgutil scan'},
+    {type:'station', kind:'warn', when:'CONCURRENT', label:'ThreadPoolExecutor', subs:['runs features in parallel','RUNS_ON \u00b7 per-feature timeout']},
+    {type:'station', kind:'accent', when:'AFTER THE POOL JOINS', label:'Apply phase', sub:'one serial writer'},
+    {type:'station', kind:'ok', check:true, sub:'JUnit XML + MR comment'}
+  ]
+});
+
+/* ── Dry run — what it actually does ── */
+renderLedger('#dryrunList', { groups: [{ rows: [
+  {title:'Reads run', sub:'the pass/fail verdict is real, not simulated'},
+  {title:'Doubles as a check', sub:'exercises the token and its permissions'},
+  {title:'No comment, no JUnit XML', sub:'both reporting channels stay silent'},
+  {title:'No labels, no title edits', sub:'the write seam is gated'},
+  {title:'Exits 0', sub:'the full preview lands in the CI log'}
+] }] });
+
+/* ── Feature anatomy — one concept per step, no code ── */
+renderStepper('#anatomyStepper', { steps: [
+  {label:'01 \u00b7 Schema', title:'Config Model', body:'A <button class="term" data-term="pydantic">Pydantic</button> <code>BaseModel</code> defines the YAML schema for the feature. Required fields use <code>Field(...)</code>, optional fields use defaults. This model is the single source of truth — the framework validates the YAML block against it automatically and wraps <code>ValidationError</code> in <code>CiAutomationError</code>.'},
+  {label:'02 \u00b7 Contract', title:'Feature[T]', body:'A generic base class. The subclass sets <code>config_model</code>, declares <code>RUNS_ON</code> (required — omitting it fails at load), and implements a <em>pure</em> <code>run(self, ctx) -&gt; FeatureResult</code> that reads state and <em>returns</em> writes as <button class="term" data-term="actions">actions</button>.'},
+  {label:'03 \u00b7 Discoverable', title:'register()', body:'A module-level call at the bottom of the feature file: <code>register("mr_title", MrTitleFeature)</code>. This is what makes the feature discoverable — you never edit <code>__init__.py</code>.'},
+  {label:'04 \u00b7 Fills itself', title:'discover_features()', body:'Uses <code>pkgutil</code> to scan <code>features/</code> and import every module. Importing a module runs its <code>register()</code> call, so the registry fills itself before the next dispatch — closing the loop back to step 1.'}
+] });
+
+/* ── Walkthrough — one concept per step, with code ── */
+renderStepper('#walkthroughStepper', { steps: [
+  {
+    label: '01 \u00b7 Config', title: 'Add the config block',
+    body: 'Append to <code>.gitlab/ci-automation.yaml</code>. The toolkit only checks <code>enabled: true|false</code> at the top level — every other key is validated by the feature\u2019s own Pydantic model (step 2).',
+    code: { filename: '.gitlab/ci-automation.yaml', html: hlYaml('features:\n  mr_title:\n    allowed_types:\n      - feat\n      - fix\n      - docs\n      - chore\n    allow_draft_prefix: true') }
+  },
+  {
+    label: '02 \u00b7 Module', title: 'Write the feature module',
+    body: 'A feature is <code>config_model</code> + <code>RUNS_ON</code> + a pure <code>run()</code> + a <code>register()</code> call. <code>run()</code> reads state through <code>ctx</code> and returns any writes as <code>actions=[\u2026]</code> — it never mutates the MR.',
+    code: { filename: 'ci_automation/features/mr_title.py', html: hlPy('class MrTitleFeature(Feature[MrTitleConfig]):\n    config_model = MrTitleConfig\n    RUNS_ON = {Events.MR_UPDATED}\n\n    def run(self, ctx: FeatureContext) -> FeatureResult:\n        title = ctx.get_mr().title or ""\n        if self._pattern.match(title):\n            return ctx.ok("Conventional commit format detected")\n        return ctx.fail("Title does not use conventional commit format")\n\nregister("mr_title", MrTitleFeature)') }
+  },
+  {
+    label: '03 \u00b7 Test', title: 'Write the test',
+    body: 'The <code>FeatureTestHarness</code> eliminates mock-setup boilerplate. Chain <code>with_*</code> setters, call <code>run()</code>, and assert on the <em>returned</em> result — never mock a side effect.',
+    code: { filename: 'tests/unit/features/test_mr_title.py', html: hlPy('def test_fails_invalid_title():\n    harness = FeatureTestHarness().with_mr(title="added login page")\n    feature = MrTitleFeature.from_config({"allowed_types": ["feat"]})\n    result = harness.run(feature, name="mr_title")\n    harness.assert_failed(result, detail_contains="conventional commit")') }
+  },
+  {
+    label: '04 \u00b7 Check', title: 'Run make check',
+    body: 'From <code>scripts/ci/</code>, <code>make check</code> runs ruff, mypy, and pytest. Green means the feature is ready — the next pipeline run discovers and dispatches it automatically.',
+    code: { filename: 'shell', html: hlEsc('cd scripts/ci\nmake check') }
+  }
+] });
+
+/* ── Trade-offs — split so no single slide is a prose wall ── */
+renderBeforeAfter('#tradeoffsCore', {
+  aspectLabel: 'Decision', beforeLabel: 'Alternative', afterLabel: 'Why',
+  rows: [
+    {aspect:'Pure features return actions', before:'<code>ctx.add_label()</code> mid-run', after:'Concurrent features mutating mid-run would race on MR state — returning actions means one serial apply phase, one writer, testable return values.'},
+    {aspect:'GitLab-faithful Event', before:'Leak <code>object_attributes</code> into features', after:'Friendly names alias 1:1 to GitLab via Pydantic <code>AliasPath</code> — schema stays stable, so a webhook server is an adapter swap, not a rewrite.'},
+    {aspect:'Dry run is ~free', before:'A separate simulate code path', after:'Because features are pure, <code>CI_AUTOMATION_DRY_RUN=1</code> just gates the one write seam in <code>main()</code> — reads still run, nothing mutates.'},
+    {aspect:'ThreadPoolExecutor in one job', before:'Separate CI jobs per check', after:'Concurrency serves purity, not the reverse — one job, threads for I/O-bound calls, avoiding 10\u201330s of cold start per job for &lt;1s of work.'},
+    {aspect:'<button class="term" data-term="collectreport">Collect-and-report</button>', before:'Fail-fast', after:'Features return <code>FeatureResult</code>, never raise — every check runs, so you see every problem in one cycle.'}
+  ]
+});
+renderBeforeAfter('#tradeoffsOps', {
+  aspectLabel: 'Decision', beforeLabel: 'Alternative', afterLabel: 'Why',
+  rows: [
+    {aspect:'<button class="term" data-term="junit">JUnit XML</button> artifact', before:'Parse job logs', after:'GitLab natively parses JUnit — per-check pass/fail in the pipeline view, MR widget, and reports tab.'},
+    {aspect:'MR comment, edited in place', before:'MR description update', after:'Idempotent HTML markers edit the same comment every run — no spam, no conflict with CodeRabbit.'},
+    {aspect:'Per-feature timeout', before:'Unbounded feature run', after:'A slow check yields a <code>timed_out</code> result instead of hanging the job.'},
+    {aspect:'Loguru', before:'stdlib <code>logging</code>', after:'<code>logger.bind()</code> is cleaner than threading <code>extra={}</code> through every call for CI context.'},
+    {aspect:'FeatureContext wrapper', before:'Pass client + env directly', after:'One typed port with <code>ok</code>/<code>fail</code> helpers — features focus on governance, not plumbing.'}
+  ]
+});
+
+/* ── Project layout — one file per concern, elided where routine ── */
+renderFiletree('#layoutTree', {
+  legend: false,
+  panes: [{
+    label: 'scripts/ci/',
+    tree: [
+      {name:'Makefile', note:'check \u00b7 test \u00b7 lint \u00b7 typecheck'},
+      {name:'pyproject.toml'},
+      {name:'ci_automation/', children:[
+        {name:'app.py', note:'entry point \u00b7 dispatch + apply'},
+        {name:'context.py', note:'FeatureContext'},
+        {name:'events.py', note:'GitLab-faithful Event'},
+        {name:'gitlab_client.py', note:'thread-safe GitLab adapter'},
+        {name:'junit.py', note:'JUnit XML report'},
+        {name:'\u2026', note:'7 more \u2014 config, env, exceptions, log, markdown, models, path_filters'},
+        {name:'features/', children:[
+          {name:'base.py', note:'Feature[T] interface'},
+          {name:'registry.py', note:'discovery + register()'},
+          {name:'size.py'},
+          {name:'mr_requires_epic.py', note:'issue \u2192 epic gate'},
+          {name:'mr_append_issue_refs.py', note:'appends issue refs to title'}
+        ]}
+      ]},
+      {name:'tests/', note:'doubles for the GitLab client \u00b7 no I/O \u00b7 230 tests'}
+    ]
+  }]
+});
+
+/* ── Roadmap — three phases, each an adapter swap ── */
+var roadmapFlow = renderFlow('#roadmapFlow', {
+  ariaLabel: 'three rollout phases',
+  caption: 'each phase is an <b>adapter swap</b>, not a rewrite',
+  items: [
+    {type:'station', kind:'accent', when:'NOW', label:'Peaky first', sub:'this repo only'},
+    {type:'station', when:'NEXT', label:'RTF first', sub:'a GitLab CI component'},
+    {type:'station', when:'LATER', label:'Wider', sub:'a hosted webhook server'}
+  ]
+});
+renderLedger('#roadmapList', { groups: [{ rows: [
+  {title:'Peaky first', flag:{kind:'done', label:'active'}, sub:'Governance checks for this repo only \u2014 scripts/ci/, the <code>.pre</code> stage, .gitlab/ci-automation.yaml. What shipped in this MR.'},
+  {title:'RTF first', flag:{kind:'next', label:'planned'}, sub:'Package as a GitLab CI component: separate repo, semantic versioning, a one-line <code>include:</code> for other RTF projects.'},
+  {title:'Wider', sub:'A hosted webhook server \u2014 same Event, Feature, actions, and client. Adds real <code>event.changed()</code> diffs, non-MR events, and per-project credentials.'}
+] }] });
+
+initPresent([
+  {pick:['#top']},
+  {kicker:'01 \u00b7 Before', pick:['#problemHead','#problemList'], steps:fragSteps('#problemList .kl-row')},
+  {kicker:'02 \u00b7 The architecture', pick:['#archHead','#archFlow'], layout:'diagram', steps:{count:archFlow.count, go:archFlow.go}, minScale:0.75},
+  {kicker:'02 \u00b7 The architecture', title:'What the governance comment looks like', pick:['#archComment']},
+  {kicker:'Dry run', pick:['#dryrunHead','#dryrunBody'], steps:fragSteps('#dryrunList .kl-row')},
+  {kicker:'03 \u00b7 Feature anatomy', pick:['#anatomyHead','#anatomyStepper'], steps:clickSteps('#anatomyStepper .kst-dot')},
+  {kicker:'04 \u00b7 Adding a feature', pick:['#walkthroughHead','#walkthroughStepper'], steps:clickSteps('#walkthroughStepper .kst-dot'), minScale:0.8},
+  {kicker:'05 \u00b7 Trade-offs', pick:['#tradeoffsHead','#tradeoffsCore'], steps:fragSteps('#tradeoffsCore .kb-row')},
+  {kicker:'05 \u00b7 Trade-offs', title:'The reporting and plumbing decisions', pick:['#tradeoffsOps'], steps:fragSteps('#tradeoffsOps .kb-row')},
+  {kicker:'06 \u00b7 Project layout', pick:['#layoutHead','#layoutTree']},
+  {kicker:'07 \u00b7 Rollout phases', pick:['#roadmapHead','#roadmapFlow','#roadmapList'], layout:'diagram', steps:{count:roadmapFlow.count, go:roadmapFlow.go}}
+]);
+</script>

@@ -1,0 +1,212 @@
+# WHY THIS SPEC EXISTS
+#
+# The sync pull endpoint is the authorization boundary: it must return exactly
+# the events an actor is entitled to, and nothing more. Phase 1 shipped with one
+# pull root (review) and two load-bearing gaps that block a second root:
+#
+#   GAP-A  Child events do not ride along for SCOPED actors. The pull filter is
+#          an exact tuple match (entity_type, entity_id) IN (entitled roots), so
+#          an event ('review_answer','review-001:q1') never matches the
+#          entitlement ('review','review-001'). Only wildcard (dev/admin) actors
+#          see children today; the moment templates sync, draft children must
+#          reach scoped authors.  (issue #83)
+#   GAP-B  A single wildcard collapses the whole filter. pull.go sets
+#          entitled = nil (fetch EVERYTHING of EVERY type) if ANY pull-root type
+#          resolves to ["*"]. With a second root this leaks cross-family data: an
+#          actor with product:* + review:review-001 would pull review-999 too.
+#          (issue #53)
+#
+# The fix (design D2): stamp a resolved (root_type, root_id) on every accepted
+# event at push time, then filter pull on the root with PER-FAMILY wildcard
+# scoping:
+#   WHERE root_type = ANY(wildcard_families) OR (root_type, root_id) IN (exact_refs)
+#
+# This model formalises the PULL contract for the Go backend
+# (services/internal/syncengine pull.go, repo/postgres.go). The push-side
+# guarantee that every stored event has a resolvable root (design D1) is a
+# pure-function guard verified by Go unit tests + the spec scenario
+# "An unresolvable root is rejected at push", NOT modelled here — it has no
+# concurrency/combinatorial subtlety to check.
+#
+# WHAT WE MODEL
+#
+# Representative single-event pushes spanning three families. Two actors with the
+# routing distinctions that matter (per design D2/D5):
+#   bob:        product:* (a FAMILY WILDCARD) + review:review-001 (an EXACT ref)
+#               — mirrors the seed's actor_bob; the cross-family hazard actor
+#               (#53). product:* must never widen review.
+#   reviewonly: review:* only (a family wildcard, nothing else)
+#               — proves a wildcard is total WITHIN its family but sealed at the
+#               boundary.
+# Each action models one push considered on its own: it fully determines the
+# post-push state (mirroring sse_channel_alignment.fizz), stamping the event's
+# root and setting pull visibility via the D2 predicate. An event's visibility
+# depends only on its own root and the fixed entitlements — events do not
+# interact — so checking one event at a time is sufficient, and because every
+# action is always enabled the model is cyclic with no terminal/deadlock state.
+# The third family ("other") is a stand-in for ANY family neither actor is
+# entitled to (e.g. a future template family) — used to prove non-leak.
+#
+# VERIFICATION
+#
+# The FizzBee runner is not yet approved at Adyen (ghcr.io image + CLI blocked,
+# see #29); verify by pasting this model into https://fizzbee.io/play and
+# confirming no counterexample. Matches the flat style of
+# sse_channel_alignment.fizz (already verified that way).
+#
+# Last verified on fizzbee.io/play: PASSED — Valid Nodes: 5, Unique states: 5,
+# IsLive: true, no deadlock, no invariant violation. (5 states = Init plus one
+# per single-event push action; see the modelling note above the actions.)
+#
+# MODELS (paths checked by tests/guards/spec-drift.test.ts)
+#
+#   services/internal/syncengine/pull.go          - the scope filter under test
+#   services/internal/syncengine/repo/postgres.go - the tuple-comparison query
+#
+# WHAT WE PROVE
+#
+#   I1_WildcardScopedToFamily   - a family wildcard (bob's product:*) never
+#                                 delivers an event of another family (review-999,
+#                                 the "other" family). The old entitled=nil
+#                                 collapse leaked exactly these. (#53)
+#   I2_ChildRidesAlongWithRoot  - a child is delivered whenever the actor is
+#                                 entitled to its ROOT (scoped authors see
+#                                 children). (#83)
+#   I3_WildcardWithinFamilyTotal- a family wildcard (reviewonly's review:*)
+#                                 delivers every event of that family, and only
+#                                 that family.
+#   I4_ExactRefIsolation        - an exact ref (review:review-001) never delivers
+#                                 a sibling root's events (review-999).
+
+# ---- Safety invariants (all about PULL) ----
+
+always assertion I1_WildcardScopedToFamily:
+  # THE D2 security invariant. bob holds product:* + review:review-001. Its
+  # product wildcard must never deliver an event from another family: not the
+  # unentitled review root review-999, not the "other" family. The old global
+  # entitled=nil collapse leaked exactly these.
+  return not bob_pull_rc999 and not bob_pull_oth
+
+always assertion I2_ChildRidesAlongWithRoot:
+  # rc1 is a review CHILD (review-001:q1) rooted at review-001. bob is entitled
+  # to review:review-001, so once the child is stored it must be pullable —
+  # children share their root's visibility (the GAP-A / #83 fix).
+  return not stored_rc1 or bob_pull_rc1
+
+always assertion I3_WildcardWithinFamilyTotal:
+  # reviewonly holds review:* only. Every review-rooted event it stores (rc1,
+  # rc999) must be delivered; it never crosses into product or the "other"
+  # family. Total within the family, sealed at the family boundary.
+  if stored_rc1 and not reviewonly_pull_rc1:
+    return False
+  if stored_rc999 and not reviewonly_pull_rc999:
+    return False
+  return not reviewonly_pull_prod and not reviewonly_pull_oth
+
+always assertion I4_ExactRefIsolation:
+  # bob's exact review:review-001 ref grants review-001 and no sibling review.
+  # An event rooted at review-999 is never delivered to bob on the strength of a
+  # review-001 entitlement.
+  return not bob_pull_rc999
+
+# ---- Initialization ----
+# No event pushed yet. Every flag False; all invariants hold vacuously.
+
+action Init:
+  stored_rc1 = False     # review child  review-001:q1  -> root (review, review-001)
+  stored_rc999 = False   # review child  review-999:q1  -> root (review, review-999)
+  stored_prod = False    # product       prod-1         -> root (product, prod-1)
+  stored_oth = False     # other family  other-1        -> root (other, other-1)
+
+  # Pull visibility, computed by the D2 predicate:
+  #   pulled(rt, rid) := rt in wildcard_families OR (rt, rid) in exact_refs
+  #   bob:        wildcard_families = {product}, exact_refs = {(review, review-001)}
+  #   reviewonly: wildcard_families = {review},  exact_refs = {}
+  bob_pull_rc1 = False
+  bob_pull_rc999 = False
+  bob_pull_prod = False
+  bob_pull_oth = False
+  reviewonly_pull_rc1 = False
+  reviewonly_pull_rc999 = False
+  reviewonly_pull_prod = False
+  reviewonly_pull_oth = False
+
+# Each action models one push, considered on its own. It fully determines the
+# post-push state: the pushed event's stored flag is True (others False), and
+# each actor's pull visibility for that event is the D2 predicate applied to its
+# root. Always enabled, so the model is cyclic with no terminal/deadlock state.
+#
+# REVIEWER NOTE — do NOT "simplify" these actions by adding `require not
+# stored_*` guards or by accumulating events monotonically (set True and never
+# reset). Either change makes the all-stored state terminal (no enabled action),
+# which FizzBee's deadlock_detection reports as DEADLOCK even though every safety
+# invariant still holds. The deliberate full reset on every action keeps each of
+# the 5 states non-terminal — the same harness pattern as sse_channel_alignment.fizz.
+# Resetting is sound here because pull visibility of an event depends only on its
+# own root and the fixed entitlements; events never interact, so one event in
+# focus at a time covers every case (I1–I4).
+
+# ---- review child rooted at review-001 (bob's entitled review root) ----
+atomic action PushReviewChildR1:
+  stored_rc1 = True
+  stored_rc999 = False
+  stored_prod = False
+  stored_oth = False
+  # root (review, review-001): bob via exact ref; reviewonly via review:* wildcard
+  bob_pull_rc1 = True            # (review, review-001) in bob.exact_refs
+  bob_pull_rc999 = False
+  bob_pull_prod = False
+  bob_pull_oth = False
+  reviewonly_pull_rc1 = True     # review in reviewonly.wildcard_families
+  reviewonly_pull_rc999 = False
+  reviewonly_pull_prod = False
+  reviewonly_pull_oth = False
+
+# ---- review child rooted at review-999 (NOT entitled for bob) ----
+atomic action PushReviewChildR999:
+  stored_rc1 = False
+  stored_rc999 = True
+  stored_prod = False
+  stored_oth = False
+  # root (review, review-999): not bob's exact ref, product wildcard doesn't
+  # apply -> bob MUST NOT pull; reviewonly's review:* covers all review roots.
+  bob_pull_rc1 = False
+  bob_pull_rc999 = False
+  bob_pull_prod = False
+  bob_pull_oth = False
+  reviewonly_pull_rc1 = False
+  reviewonly_pull_rc999 = True
+  reviewonly_pull_prod = False
+  reviewonly_pull_oth = False
+
+# ---- product event (its own root) ----
+atomic action PushProduct:
+  stored_rc1 = False
+  stored_rc999 = False
+  stored_prod = True
+  stored_oth = False
+  # root (product, prod-1): bob via product:* wildcard; reviewonly not entitled.
+  bob_pull_rc1 = False
+  bob_pull_rc999 = False
+  bob_pull_prod = True
+  bob_pull_oth = False
+  reviewonly_pull_rc1 = False
+  reviewonly_pull_rc999 = False
+  reviewonly_pull_prod = False
+  reviewonly_pull_oth = False
+
+# ---- "other" family event (its own root): a family neither actor is entitled to ----
+atomic action PushOther:
+  stored_rc1 = False
+  stored_rc999 = False
+  stored_prod = False
+  stored_oth = True
+  # root (other, other-1): neither bob nor reviewonly is entitled to this family.
+  bob_pull_rc1 = False
+  bob_pull_rc999 = False
+  bob_pull_prod = False
+  bob_pull_oth = False
+  reviewonly_pull_rc1 = False
+  reviewonly_pull_rc999 = False
+  reviewonly_pull_prod = False
+  reviewonly_pull_oth = False

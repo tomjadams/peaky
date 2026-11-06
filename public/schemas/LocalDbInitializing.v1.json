@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/LocalDbInitializing.v1.json",
+  "title": "LocalDbInitializing.v1",
+  "description": "Emitted at the start of local SQLite bootstrap. Per-browser ephemeral; stays on the device.",
+  "x-peaky-event": {
+    "type": "LocalDbInitializing.v1",
+    "sources": [
+      "peaky.system"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "opfsAvailable": {
+      "type": "boolean",
+      "description": "True when OPFS is available; false on browsers that fall back to memory storage.",
+      "markdownDescription": "True when OPFS is available; false on browsers that fall back to memory storage."
+    }
+  },
+  "required": [
+    "opfsAvailable"
+  ],
+  "additionalProperties": false
+}

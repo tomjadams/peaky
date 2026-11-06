@@ -1,0 +1,32 @@
+{
+  "milestone": "assessment",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 9,
+    "passed": 9,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-ASM-001",
+    "VAL-ASM-002",
+    "VAL-ASM-003",
+    "VAL-ASM-004",
+    "VAL-ASM-005",
+    "VAL-ASM-006",
+    "VAL-ASM-007",
+    "VAL-CROSS-001",
+    "VAL-CROSS-002"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added 'Flow Validator Guidance: Assessment API' section with review-specific question IDs, checklist item IDs, answer formats, and isolation rules for assessment milestone testing",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null
+}

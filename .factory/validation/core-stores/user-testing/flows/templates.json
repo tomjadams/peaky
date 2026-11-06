@@ -1,0 +1,30 @@
+{
+  "flowId": "templates",
+  "testedAt": "2026-03-06T09:57:35Z",
+  "toolsUsed": ["curl"],
+  "assertions": {
+    "VAL-TPL-001": {
+      "status": "pass",
+      "evidence": "POST /api/templates with name 'Flow-Test-Template' returned 201 with id 'template-1772791021913-h0q1bg' and status 'draft'. Subsequent GET /api/templates returned 5 templates including the new one with correct name and draft status."
+    },
+    "VAL-TPL-002": {
+      "status": "pass",
+      "evidence": "PUT /api/templates/template-1772791021913-h0q1bg with name 'Updated-Flow-Test' and updated description returned 200. Subsequent GET /api/templates/template-1772791021913-h0q1bg confirmed name changed to 'Updated-Flow-Test', description changed to 'Updated by flow validator', and updatedAt timestamp advanced."
+    },
+    "VAL-TPL-003": {
+      "status": "pass",
+      "evidence": "POST /api/templates/template-002/publish returned 200 with status changed to 'active' and publishedAt set to '2026-03-06T09:57:34.927Z'. Subsequent GET /api/templates confirmed template-002 shows status 'active' with publishedAt field present."
+    },
+    "VAL-TPL-004": {
+      "status": "pass",
+      "evidence": "GET /api/templates/template-1772791021913-h0q1bg returned 200 with full template data including id, name, version, status, description, pillars, createdAt, updatedAt, and reviewsCount."
+    },
+    "VAL-TPL-005": {
+      "status": "pass",
+      "evidence": "After creating a new template and publishing template-002, GET /api/templates returned all 4 seed templates (template-001, template-002, template-003, template-004) plus the newly created template. Individual GET requests for each seed template ID returned 200."
+    }
+  },
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 5 assertions: 5 passed, 0 failed. All template CRUD and publish operations persist correctly in the mutable in-memory store. Seed templates are preserved after mutations."
+}

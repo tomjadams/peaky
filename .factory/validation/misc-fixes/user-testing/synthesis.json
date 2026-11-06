@@ -1,0 +1,17 @@
+{
+  "milestone": "misc-fixes",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "notes": "No testable assertions for this milestone. Both misc-fixes features (fix-templates-put-field-sync, fix-assessment-dead-code-and-test-gap) have empty fulfills arrays — they are internal code quality fixes with no user-facing assertion mappings. All 20 validation contract assertions were already passed in prior milestones (core-stores, assessment).",
+  "previousRound": null
+}

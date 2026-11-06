@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/ReviewCheckpointSaved.v1.json",
+  "title": "ReviewCheckpointSaved.v1",
+  "description": "Emitted when a batch of answers is committed as a checkpoint, capturing overall progress at that moment.",
+  "x-peaky-event": {
+    "type": "ReviewCheckpointSaved.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "templateId": {
+      "type": "string",
+      "description": "ID of the template whose questions were answered in this batch.",
+      "markdownDescription": "ID of the template whose questions were answered in this batch."
+    },
+    "note": {
+      "type": "string",
+      "description": "Optional free-text note summarising the checkpoint session (may contain PII — subject to GDPR erasure).",
+      "markdownDescription": "Optional free-text note summarising the checkpoint session (may contain PII — subject to GDPR erasure)."
+    },
+    "questionsAnswered": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of questions that received an answer in this batch.",
+      "markdownDescription": "Number of questions that received an answer in this batch."
+    },
+    "questionsChanged": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of previously-answered questions whose answer changed.",
+      "markdownDescription": "Number of previously-answered questions whose answer changed."
+    },
+    "progressDelta": {
+      "type": "number",
+      "description": "Percentage-point change in overall review progress after this checkpoint.",
+      "markdownDescription": "Percentage-point change in overall review progress after this checkpoint."
+    },
+    "overallProgress": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Overall review completion percentage (0–100) after this checkpoint.",
+      "markdownDescription": "Overall review completion percentage (0–100) after this checkpoint."
+    },
+    "pillarSnapshots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "URL-safe slug of the pillar.",
+            "markdownDescription": "URL-safe slug of the pillar."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the pillar.",
+            "markdownDescription": "Display name of the pillar."
+          },
+          "progress": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Pillar completion percentage (0–100).",
+            "markdownDescription": "Pillar completion percentage (0–100)."
+          },
+          "totalQuestions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total questions in this pillar.",
+            "markdownDescription": "Total questions in this pillar."
+          },
+          "answeredQuestions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Questions answered in this pillar.",
+            "markdownDescription": "Questions answered in this pillar."
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "progress",
+          "totalQuestions",
+          "answeredQuestions"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Per-pillar progress snapshots captured at the time of the checkpoint.",
+      "markdownDescription": "Per-pillar progress snapshots captured at the time of the checkpoint."
+    }
+  },
+  "required": [
+    "templateId",
+    "questionsAnswered",
+    "questionsChanged",
+    "progressDelta",
+    "overallProgress",
+    "pillarSnapshots"
+  ],
+  "additionalProperties": false
+}

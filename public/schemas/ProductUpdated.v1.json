@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/ProductUpdated.v1.json",
+  "title": "ProductUpdated.v1",
+  "description": "Emitted when product metadata is changed. Only the modified fields are included in `changes`.",
+  "x-peaky-event": {
+    "type": "ProductUpdated.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "changes": {
+      "type": "object",
+      "additionalProperties": {},
+      "description": "Map of field names to their new values. Only changed fields are included.",
+      "markdownDescription": "Map of field names to their new values. Only changed fields are included."
+    }
+  },
+  "required": [
+    "changes"
+  ],
+  "additionalProperties": false
+}

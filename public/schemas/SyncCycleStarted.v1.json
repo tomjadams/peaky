@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/SyncCycleStarted.v1.json",
+  "title": "SyncCycleStarted.v1",
+  "description": "Emitted at the start of `SyncEngine.runSyncCycle()`. Pairs with SyncCycleSucceeded.v1 or SyncCycleFailed.v1 via cycleId. Push-eligible so postmortems can correlate which session synced what.",
+  "x-peaky-event": {
+    "type": "SyncCycleStarted.v1",
+    "sources": [
+      "peaky.system"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "cycleId": {
+      "type": "string",
+      "description": "UUID generated at cycle start; correlates with end events.",
+      "markdownDescription": "UUID generated at cycle start; correlates with end events."
+    }
+  },
+  "required": [
+    "cycleId"
+  ],
+  "additionalProperties": false
+}

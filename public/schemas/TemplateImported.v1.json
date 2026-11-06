@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/TemplateImported.v1.json",
+  "title": "TemplateImported.v1",
+  "description": "Emitted when a template is imported from an external source (e.g. JSON file upload).",
+  "x-peaky-event": {
+    "type": "TemplateImported.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Display name given to the imported template.",
+      "markdownDescription": "Display name given to the imported template."
+    },
+    "pillarCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of pillars included in the imported template.",
+      "markdownDescription": "Number of pillars included in the imported template."
+    },
+    "questionCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total number of questions across all pillars in the imported template.",
+      "markdownDescription": "Total number of questions across all pillars in the imported template."
+    }
+  },
+  "required": [
+    "name",
+    "pillarCount",
+    "questionCount"
+  ],
+  "additionalProperties": false
+}

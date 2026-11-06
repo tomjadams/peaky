@@ -1,0 +1,47 @@
+# /merge-check config — commit this. Edit when tooling changes; delete to regenerate.
+# Only per-repo state /merge-check needs. Routing lives in the droids.
+# ALL paths below are relative to the PROJECT ROOT, not to this file.
+schema_version: 1
+
+# Where your reviewer droids live.
+droids_dir: ".factory/droids"
+
+# Directory for the per-MR attestation; /merge-check writes "<dir>/mr-<iid>.md".
+attestation_dir: "attestations"
+
+# Discrimination-sensor test commands, keyed by FILE EXTENSION without the dot
+# (ts, vue, go, py, rs). /merge-check takes the extension of each file it mutated and runs
+# the matching command; an extension with no entry is skipped (recorded, not failed).
+# Commands must be ONE-SHOT (never watch) and run from the project root.
+# Placeholders: {files} = changed files (space-separated), {package} = dir of the first.
+test:
+  ts: "pnpm exec vitest related --run {files}"
+  vue: "pnpm exec vitest related --run {files}"
+  # Go is its own module; build cache skips unchanged packages (matches pre-commit).
+  go: "cd services && go test ./..."
+  # The merge-check skill's own Python package plus the CI gate scripts share the
+  # `py` slot. Each is a separate uv project (its own pyproject + uv.lock), so the
+  # sensor runs both in sequence and exits non-zero if either fails. Run from the
+  # merge-check subproject first (the sensor mutates a file there), then the CI
+  # gate suite. --extra dev is REQUIRED on both: pytest/hypothesis live in the dev
+  # extra, so without it a fresh checkout (or the sensor's throwaway worktree)
+  # collects zero tests and every mutant falsely "survives". The extra provisions
+  # the test deps from uv.lock on each subproject.
+  py: "cd .factory/skills/merge-check && uv run --frozen --extra dev pytest -q && uv run --frozen --project scripts/ci --extra dev pytest scripts/ci/tests -q"
+
+# Server-side policy the CI gate reads (from the MERGE TARGET branch, never the MR
+# under review). The client ignores this whole `gate:` subtree — it only lives in this
+# shared file so there is one config to commit. Future gate-only policy (e.g. a
+# reviewer-label override) slots in here too.
+gate:
+  # Attestation exemptions: MRs whose ENTIRE diff is confined to a rule's `paths` are
+  # waived from the /merge-check attestation requirement — genuinely machine-generated
+  # changes with no source to review adversarially. The gate requires CONFINEMENT:
+  # every changed file must match `paths`, so bundling an exempt file with other
+  # changes does NOT skip the gate. `source_branch`/`title` are optional secondary
+  # guards; `paths` is the load-bearing, non-forgeable check.
+  attestation_exempt:
+    - reason: "Daily changelog regeneration by git-cliff; derived content, no source to review."
+      paths:
+        - "site/docs/development/changelog.md"
+      source_branch: "changelog/*"

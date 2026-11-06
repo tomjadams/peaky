@@ -1,0 +1,192 @@
+# Coverage reports
+coverage/
+
+# Created by https://www.toptal.com/developers/gitignore/api/nuxtjs,macos,visualstudiocode
+# Edit at https://www.toptal.com/developers/gitignore?templates=nuxtjs,macos,visualstudiocode
+
+### macOS ###
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
+.swp
+
+# Icon must end with two \r
+Icon
+
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+### macOS Patch ###
+# iCloud generated files
+*.icloud
+
+### NuxtJS ###
+# Generated dirs
+dist
+.nuxt
+.nuxt-*
+.output
+.gen
+
+# Node dependencies
+node_modules
+
+# FizzBee model-checker artefacts (parsed AST + run output)
+.fizzbee-out/
+formal_verification/**/out/
+formal_verification/**/*.json
+
+# System files
+*.log
+.watch.pid
+
+### VisualStudioCode ###
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+### VisualStudioCode Patch ###
+# Ignore all local history of files
+.history
+.ionide
+
+# Keep screenshots for docs
+!screenshots/*.png
+!site/docs/assets/images/*.png
+
+# Python artifacts (CI toolkit under scripts/ci/)
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+
+# Zensical/Documentation site
+site/.venv/
+site/.cache/
+site/site/
+site/build/
+
+# Docs build output (copied during Vercel build)
+public/docs/
+
+# Manual screenshots (duplicated in site/docs/assets/images/)
+screenshots/
+
+# Playwright test artifacts
+playwright-report/
+test-results/
+
+# End of https://www.toptal.com/developers/gitignore/api/nuxtjs,macos,visualstudiocode
+
+# Nuxt test utils config
+.nuxtrc
+
+# Playwright page destructuring assets
+.playwright-cli
+
+# UX reviewer artifacts (screenshots and snapshots from cognitive load testing)
+.ux-artifacts/
+tsconfig.tsbuildinfo
+
+# Local env overrides
+.env
+.env.local
+
+# Local /merge-check reviewer reuse cache
+.factory/merge-check-cache.json
+.factory/merge-check-cache.json.lock
+# Merge-check scoped sliced diffs and run artifacts
+.factory/scoped-diffs
+.factory/merge-check-runs/
+# Operational handoff (non-commitable; author deletes once follow-up MR is open)
+HANDOFF.md
+
+# Go build output (binaries built locally — Docker builds inside the container)
+services/peaky-api
+services/peaky-sse
+services/peaky-ctl
+
+.vercel/output
+
+# Leftover config from a previous deployment, removed in #87 (GitHub Actions
+# workflows + Claude Code command/skill files). Ignored broadly so they cannot
+# silently return. This repo is GitLab-native — CI lives in .gitlab-ci.yml and
+# .gitlab/, CODEOWNERS in .gitlab/ — so .github/ is unused here. If a GitHub-side
+# file is ever genuinely needed, un-ignore that specific path rather than removing
+# this guard.
+.claude
+.github
+
+# Ignore skills managed by agent-marketplace
+.factory/skills/explainer
+.factory/skills/glab
+.factory/skills/vue-flow
+.factory/skills/discovery
+.factory/skills/sketch
+
+# Ignore rules managed by agent-marketplace
+.factory/rules/token-efficiency.md
+
+# Ignore subagents managed by agent-marketplace
+.factory/droids/rtf-docs-dev-reviewer.md
+.factory/droids/rtf-docs-product-reviewer.md
+.factory/droids/rtf-go-reviewer.md
+.factory/droids/rtf-go-test-reviewer.md
+.factory/droids/rtf-outcome-verifier.md
+.factory/droids/rtf-postgres-reviewer.md
+.factory/droids/rtf-python-reviewer.md
+.factory/droids/rtf-python-test-reviewer.md
+.factory/droids/rtf-security-reviewer.md
+.factory/droids/rtf-sqlite-reviewer.md
+.factory/droids/rtf-typescript-reviewer.md
+.factory/droids/rtf-typescript-test-reviewer.md
+.factory/droids/rtf-ui-reviewer.md
+.factory/droids/rtf-ux-reviewer.md
+.factory/droids/rtf-vue-reviewer.md
+
+# Ignore commands managed by agent-marketplace
+
+.factory/commands/roadmap.md
+.factory/commands/new-work.md
+.factory/commands/onboarding.md
+.factory/commands/discovery.md
+.factory/commands/retro.md
+
+# agent-marketplace materialization manifest (machine-generated)
+.agents/materialization-manifest.yaml
+.agents/config.local.yaml
+
+# we don't need product sketches in code because their lifetime is as short as a decision
+sketches/

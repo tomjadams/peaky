@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/LocalDbReady.v1.json",
+  "title": "LocalDbReady.v1",
+  "description": "Emitted when the local database is ready for reads/writes. Carries the cold-start duration so the /system Database tile can show readiness latency.",
+  "x-peaky-event": {
+    "type": "LocalDbReady.v1",
+    "sources": [
+      "peaky.system"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "coldStartMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Wall-clock duration from the start of bootstrap to the ready signal, in milliseconds.",
+      "markdownDescription": "Wall-clock duration from the start of bootstrap to the ready signal, in milliseconds."
+    },
+    "opfsAvailable": {
+      "type": "boolean",
+      "description": "True when OPFS is available; false on memory-only fallback browsers.",
+      "markdownDescription": "True when OPFS is available; false on memory-only fallback browsers."
+    }
+  },
+  "required": [
+    "coldStartMs",
+    "opfsAvailable"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,96 @@
+# WHY THIS SPEC EXISTS
+#
+# The sync outbox is Peaky's durability backbone. Every local write (answer,
+# product save, template change) lands in local_outbox before reaching the
+# server. If a bug lets an item reach an undefined status, or lets retry_count
+# grow without bound, local changes can silently vanish or loop forever.
+#
+# WHAT WE MODEL
+#
+# The four outbox status values and the transitions between them, mirroring
+# SyncEngine.ts:
+#   pending   → syncing    (SyncEngine.getPendingItems + markItemSyncing)
+#   syncing   → synced     (markItemSynced on server accept)
+#   syncing   → pending    (resetItemForRetry, increments retryCount)
+#   syncing   → failed     (markItemFailed, only after maxRetries exhausted)
+#
+# MODELS (paths and constants checked by tests/guards/spec-drift.test.ts)
+#
+#   app/services/sync/SyncEngine.ts   — the four transitions listed above
+#   app/services/sync/RetryPolicy.ts  — maxAttempts is MAX_RETRIES here
+#   shared/db/schema/sync.ts          — outboxStatus is StatusIsValid here
+#
+# WHAT WE PROVE
+#
+#   StatusIsValid      — status is always one of the four enum values
+#   RetryCountBounded  — retry_count never exceeds maxRetries (no runaway loop)
+#   EventuallyTerminal — every item eventually reaches synced or failed and stays
+#                        there (the outbox drains; no item spins forever)
+#
+# HOW TO READ FIZZBEE
+#
+# `action Init`        — the initial state (maps to INSERT into local_outbox)
+# `atomic action`      — a transition FizzBee can fire in any order, applied as
+#                        one step
+# `require`            — precondition; the action is skipped if false (no error)
+# `fair`               — the action is not starved forever (weak fairness);
+#                        required for the liveness property below
+# `always assertion`   — safety invariant checked in every reachable state
+# `eventually always assertion` — liveness property; every execution must reach
+#                        it and stay there
+#
+# FAIRNESS ASSUMPTIONS (what must go right for the outbox to drain)
+#
+#   StartSync  is fair — the engine eventually picks up a pending item
+#   MarkSynced is fair — a sync attempt eventually gets a server response
+# Nothing is assumed about RetryItem or MarkFailed: they may fire any number of
+# times (bounded by maxRetries) without breaking the liveness proof.
+#
+# DEADLOCK DETECTION IS OFF
+#
+# synced and failed are genuinely terminal for a single outbox row — the row is
+# done and never transitions again. FizzBee would otherwise report the absence of
+# an enabled action there as a deadlock.
+
+---
+deadlock_detection: false
+---
+
+MAX_RETRIES = 5   # AdaptiveRetryPolicy.maxAttempts default in RetryPolicy.ts
+
+action Init:
+  status = "pending"
+  retry_count = 0
+
+# SyncEngine picks up pending items and marks them syncing.
+atomic fair action StartSync:
+  require status == "pending"
+  status = "syncing"
+
+# Server accepted the payload — item is done.
+atomic fair action MarkSynced:
+  require status == "syncing"
+  status = "synced"
+
+# Transient network error — back to queue with an incremented counter.
+atomic action RetryItem:
+  require status == "syncing"
+  require retry_count < MAX_RETRIES
+  retry_count = retry_count + 1
+  status = "pending"
+
+# Permanent failure or retries exhausted — park the item.
+atomic action MarkFailed:
+  require status == "syncing"
+  require retry_count >= MAX_RETRIES
+  status = "failed"
+
+
+always assertion StatusIsValid:
+  return status in ["pending", "syncing", "synced", "failed"]
+
+always assertion RetryCountBounded:
+  return retry_count <= MAX_RETRIES
+
+eventually always assertion EventuallyTerminal:
+  return status in ["synced", "failed"]

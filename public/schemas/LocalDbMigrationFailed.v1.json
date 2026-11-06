@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/LocalDbMigrationFailed.v1.json",
+  "title": "LocalDbMigrationFailed.v1",
+  "description": "Emitted by the migration runner when a single or bundle migration throws. Pairs with the corresponding `_migration_log` row; the event is the visible signal, the log is the local diagnostic.",
+  "x-peaky-event": {
+    "type": "LocalDbMigrationFailed.v1",
+    "sources": [
+      "peaky.system"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "migrationId": {
+      "type": "string",
+      "description": "Migration ID that failed (e.g. '0007_domain_events_rename_source_values').",
+      "markdownDescription": "Migration ID that failed (e.g. '0007_domain_events_rename_source_values')."
+    },
+    "errorMessage": {
+      "type": "string",
+      "description": "Sanitised error message. Stack traces and file paths are stripped before emission.",
+      "markdownDescription": "Sanitised error message. Stack traces and file paths are stripped before emission."
+    }
+  },
+  "required": [
+    "migrationId",
+    "errorMessage"
+  ],
+  "additionalProperties": false
+}

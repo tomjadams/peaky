@@ -1,0 +1,118 @@
+# WHY THIS SPEC EXISTS
+#
+# LocalMutation.commit() and LocalMutation.localOnly() both rely on one SQLite
+# transaction, but they have different durable write sets:
+#
+#   commit()    = state + event + outbox
+#   localOnly() = state only
+#
+# If any staged write throws, the transaction rolls back and no write survives.
+# localOnly() is the bounded Template-authoring exception: it must never stage an
+# event or outbox row and must never trigger transport outside the transaction.
+#
+# MODELS (paths checked by tests/guards/spec-drift.test.ts)
+#
+#   app/services/local-mutation.ts — LocalMutation.commit()/localOnly()
+#   app/local-db/write-gate.ts     — the transaction boundary being modelled
+#
+# WHAT WE PROVE
+#
+#   WriteConsistency       — each committed mode has exactly its allowed writes
+#   NoPartialCommit        — after rollback, no staged write survives
+#   StagedWritesWellFormed — commit writes state → event → outbox
+#   LocalOnlyHasNoTransport — localOnly never stages event or outbox
+
+action Init:
+  mode = "none"
+  state_written = 0
+  event_written = 0
+  outbox_written = 0
+  committed = False
+  rolled_back = False
+
+atomic action BeginCommit:
+  require mode == "none"
+  require not committed
+  require not rolled_back
+  mode = "commit"
+
+atomic action BeginLocalOnly:
+  require mode == "none"
+  require not committed
+  require not rolled_back
+  mode = "local_only"
+
+atomic action WriteState:
+  require mode != "none"
+  require not committed
+  require not rolled_back
+  require state_written == 0
+  state_written = 1
+
+atomic action WriteEvent:
+  require mode == "commit"
+  require not committed
+  require not rolled_back
+  require state_written == 1
+  require event_written == 0
+  event_written = 1
+
+atomic action WriteOutbox:
+  require mode == "commit"
+  require not committed
+  require not rolled_back
+  require event_written == 1
+  require outbox_written == 0
+  outbox_written = 1
+
+atomic action Commit:
+  require mode != "none"
+  require not committed
+  require not rolled_back
+  require state_written == 1
+  if mode == "commit":
+    require event_written == 1
+    require outbox_written == 1
+  else:
+    require event_written == 0
+    require outbox_written == 0
+  committed = True
+
+atomic action Rollback:
+  require mode != "none"
+  require not committed
+  require not rolled_back
+  state_written = 0
+  event_written = 0
+  outbox_written = 0
+  rolled_back = True
+
+atomic action NextMutation:
+  require committed or rolled_back
+  mode = "none"
+  state_written = 0
+  event_written = 0
+  outbox_written = 0
+  committed = False
+  rolled_back = False
+
+always assertion WriteConsistency:
+  if not committed:
+    return True
+  if mode == "commit":
+    return (state_written == 1 and event_written == 1
+            and outbox_written == 1)
+  return (mode == "local_only" and state_written == 1
+          and event_written == 0 and outbox_written == 0)
+
+always assertion NoPartialCommit:
+  return not rolled_back or (state_written == 0 and event_written == 0
+                             and outbox_written == 0)
+
+always assertion StagedWritesWellFormed:
+  return (state_written <= 1 and event_written <= 1 and outbox_written <= 1
+          and state_written >= event_written
+          and event_written >= outbox_written)
+
+always assertion LocalOnlyHasNoTransport:
+  return mode != "local_only" or (event_written == 0 and outbox_written == 0)

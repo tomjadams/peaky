@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/OpfsQuotaWarning.v1.json",
+  "title": "OpfsQuotaWarning.v1",
+  "description": "Emitted when an OPFS measurement crosses the 80% quota threshold. Per-browser storage state, never pushed.",
+  "x-peaky-event": {
+    "type": "OpfsQuotaWarning.v1",
+    "sources": [
+      "peaky.system"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "usageBytes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Bytes currently used by Peaky's OPFS storage.",
+      "markdownDescription": "Bytes currently used by Peaky's OPFS storage."
+    },
+    "quotaBytes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Browser-reported quota for the origin, in bytes.",
+      "markdownDescription": "Browser-reported quota for the origin, in bytes."
+    },
+    "usagePct": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Rounded percentage of quota used (0..100).",
+      "markdownDescription": "Rounded percentage of quota used (0..100)."
+    }
+  },
+  "required": [
+    "usageBytes",
+    "quotaBytes",
+    "usagePct"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/TemplatePillarUpdated.v1.json",
+  "title": "TemplatePillarUpdated.v1",
+  "description": "Emitted when a template pillar's metadata is changed. Only modified fields are included in `changes`.",
+  "x-peaky-event": {
+    "type": "TemplatePillarUpdated.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "templateId": {
+      "type": "string",
+      "description": "ID of the template draft this item belongs to.",
+      "markdownDescription": "ID of the template draft this item belongs to."
+    },
+    "changes": {
+      "type": "object",
+      "additionalProperties": {},
+      "description": "Map of field names to their new values. Only changed fields are included.",
+      "markdownDescription": "Map of field names to their new values. Only changed fields are included."
+    }
+  },
+  "required": [
+    "templateId",
+    "changes"
+  ],
+  "additionalProperties": false
+}

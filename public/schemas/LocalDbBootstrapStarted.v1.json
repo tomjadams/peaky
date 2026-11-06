@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/LocalDbBootstrapStarted.v1.json",
+  "title": "LocalDbBootstrapStarted.v1",
+  "description": "Emitted by the client plugin at the start of warmup. The `isRecreate` flag distinguishes a normal load from a post-recreate-DB reload.",
+  "x-peaky-event": {
+    "type": "LocalDbBootstrapStarted.v1",
+    "sources": [
+      "peaky.system"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "isRecreate": {
+      "type": "boolean",
+      "description": "True when this bootstrap follows a user-triggered recreate-DB reload.",
+      "markdownDescription": "True when this bootstrap follows a user-triggered recreate-DB reload."
+    }
+  },
+  "required": [
+    "isRecreate"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,81 @@
+# CodeRabbit configuration tuned for Peaky.
+# Signal rate on MR 7 was ~19% (31 valid / 160 comments).
+# The 11 droids cover the rest; we keep CodeRabbit for backend
+# correctness holes they occasionally miss.
+
+reviews:
+  auto_review:
+    enabled: true
+    auto_reply: false
+    drafts: false
+    auto_pause_after_reviewed_commits: 3
+  poem: false
+  summary: false
+  collapse_walkthrough: true
+  profile: "chill"
+  # Request-Changes Workflow: CodeRabbit's `pre_merge_checks` with mode `error`
+  # only block merges when this flag is on. Pair with the shell-side gate
+  # (`scripts/ci/mr_require_quality_gates.py`) so the merge contract has
+  # both an LLM peer (description, issue_assessment) and a deterministic
+  # byte-level peer (force_full: true, commit_sha match, no drift).
+  request_changes_workflow: true
+  pre_merge_checks:
+    description:
+      mode: "error"
+      requirements: >
+        The merge request description should summarize the user-visible change,
+        validation performed, rollout considerations, and follow-up work.
+    issue_assessment:
+      mode: "warning"
+    # Auditability: only requested reviewers (NOT the MR author) can flip the
+    # `Ignore failed checks` checkbox or send `@coderabbitai ignore pre-merge
+    # checks`. Combined with `request_changes_workflow: true`, a maintainer
+    # cannot silently bypass their own MR's gate.
+    override_requested_reviewers_only: true
+  path_instructions:
+    - path: "**/*.vue"
+      instructions: >
+        Do not comment on CSS class choices (colors, borders, hover states,
+        rounded, shadow). The project uses a documented design system in
+        site/docs/development/visual-design.md and DESIGN.md. Alpha tints
+        (e.g. hover:bg-black/[0.03] dark:hover:bg-white/[0.04]) and raw
+        palette dots (bg-success, bg-warning, bg-primary) are intentionally
+        sanctioned. Only flag missing accessibility attributes or broken
+        template expressions.
+    - path: "site/docs/development/visual-design.md"
+      instructions: "Do not flag raw color utilities in this file. It is the source-of-truth design document."
+    - path: "attestations/**"
+      instructions: >
+        DO NOT review files under `attestations/`. They are machine-emitted
+        artefacts from /merge-check; the YAML frontmatter is the contract, not
+        code. The merge-gate (scripts/ci/mr_require_quality_gates.py) validates
+        them deterministically; LLM review here adds noise without value.
+    - path: "site/docs/development/changelog.md"
+      instructions: "Do not review this file. It is auto-generated from git history by git-cliff and follows a strict template. Manual review is unnecessary."
+    - path: "**/*.test.ts"
+      instructions: "Only flag test logic bugs (wrong assertions, mocked state leaking, missing error checks). Skip naming/style nits."
+    - path: "services/**/*.go"
+      instructions: >
+        Focus on correctness and security: ignored errors, missing timeouts,
+        SQL injection risks, race conditions, resource leaks. Skip Go style
+        nits (naming, receiver order, comment formatting) — those are
+        covered by golangci-lint and the rtf-go-reviewer droid.
+    - path: "**/*.md"
+      instructions: "Only flag factual inaccuracies or broken links. Skip wording/style. Exception: `attestations/**` (above) is skipped outright."
+    - path: "openspec/changes/**/specs/**/*.md"
+      instructions: >
+        OpenSpec spec-delta files. The OpenSpec format mandates the file begin
+        with a level-2 header (## ADDED/MODIFIED/REMOVED Requirements); do not
+        flag the missing top-level H1 (MD041) or the heading-level hierarchy.
+        Only flag factual inaccuracies or broken links.
+    - path: "Makefile"
+      instructions: >
+        The `docker compose down -v` in the watch and watch-backend EXIT traps is intentional.
+        The team wants to wipe the Postgres named volume on every Ctrl+C to guarantee a
+        clean-slate database for testing. Do not flag this behaviour.
+
+  inline_comments:
+    enabled: true
+    minimum_code_change_length: 3
+  ai_agent_prompts:
+    enabled: false

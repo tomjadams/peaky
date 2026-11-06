@@ -1,0 +1,66 @@
+name: peaky-workflow
+version: 1
+description: |
+  Custom peaky workflow with red/green/refactor approach and more. 
+  We use HTML comments within templates to customize areas, keeping our schema focused on intent.
+
+# No proposal.md as we rarely review; design.md is richer & reviewed in SDLC
+artifacts:
+  - id: specs
+    generates: specs/**/*.md
+    description: Detailed specifications for the change
+    template: spec.md
+    instruction: >
+      Create specification files that define WHAT the system should do.
+      Follow the template structure and guidance (in HTML comments).
+    requires: []
+  - id: design
+    generates: design.md
+    description: Technical design document with implementation details
+    template: design.md
+    instruction: >
+      Create the design document that explains HOW to implement the change.
+      Reference specs for requirements.
+      If this design touches the database schema, describe the migration strategy
+      and reference site/docs/development/walkthroughs/local-first/upgrades.md.
+      If this design touches API endpoints, sync push, authorization, or stores
+      data in the browser, include a Security Considerations section using the
+      threat model from site/docs/development/walkthroughs/local-first/security.md.
+      Follow the template structure and guidance (in HTML comments).
+    requires:
+      - specs
+  - id: tasks
+    generates: tasks.md
+    description: Implementation tasks derived from specs and design
+    template: tasks.md
+    instruction: >
+      Create the task list that breaks down implementation work.
+      Reference specs for what to build, design for how.
+      Follow the template structure and guidance (in HTML comments).
+    requires:
+      - specs
+      - design
+apply:
+  requires:
+    - tasks
+  tracks: tasks.md
+  instruction: >
+    Read context files, work through pending tasks, mark complete as you go.
+    Pause if you hit blockers or need clarification.
+
+    For security: If the change adds or modifies API endpoints, sync event
+    handlers, or client-side data storage, run the rtf-security-reviewer droid
+    (.factory/droids/rtf-security-reviewer.md) after implementation. The reviewer
+    asks outcome-based questions (can an attacker see/modify/inject/crash/
+    escalate/steal?) rather than scanning for patterns.
+
+    For DB migration safety: Check whether any change to shared/db/schema/
+    (especially text({ enum: [...] }) columns) requires a new SQLite migration.
+    SQLite cannot ALTER COLUMN — enum changes need table recreation. After
+    writing a migration SQL file: (1) register it in shared/db/migrations/index.ts,
+    (2) run `pnpm migrations:generate-content` to regenerate sqlite-content.ts.
+    Run tests/unit/local-db/migrations.test.ts to verify the schema-contract test passes
+    (it asserts all Drizzle enum values match CHECK constraints). For rollout context,
+    reference site/docs/development/walkthroughs/local-first/upgrades.md — the
+    source of truth for how migrations are rolled out to existing clients, what
+    happens on failure, and recovery flows.

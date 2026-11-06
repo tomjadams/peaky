@@ -1,0 +1,74 @@
+# WHY THIS SPEC EXISTS
+#
+# Peaky stores browser-local data in a SQLite WASM file via SQLocal + OPFS.
+# SQLite in WAL mode allows concurrent readers, but only ONE writer at a time.
+# In a browser, multiple tabs can be open simultaneously and each tab runs its
+# own SQLocal worker pointing at the same OPFS file. Without coordination,
+# concurrent writes from two tabs can corrupt the WAL file or produce lost
+# updates.
+#
+# SQLocal uses a SharedWorker as the single database endpoint: all tabs send
+# queries to the worker, which serialises them. This spec models that
+# coordination protocol and proves mutual exclusion holds.
+#
+# WHAT WE MODEL
+#
+# Three concurrent tabs (Tab0, Tab1, Tab2), each following the protocol:
+#   idle → requesting → writing → idle
+#
+# A shared lock_holder variable (-1 = free) serialises write access.
+# Acquire is only granted when lock_holder == -1.
+#
+# Each action picks the acting tab with `oneof range(TAB_COUNT)`, so the model
+# checker explores every tab and every interleaving without duplicating the
+# protocol per tab.
+#
+# MODELS (paths checked by tests/guards/spec-drift.test.ts)
+#
+#   app/local-db/write-gate.ts — the single-writer gate this protocol describes
+#   app/local-db/client.ts     — the SQLocal/OPFS connection being serialised
+#
+# WHAT WE PROVE
+#
+#   NoDataCorruption — the write lock is always free or held by exactly one tab
+#                      (mutual exclusion; two tabs can never write simultaneously)
+#   LockConsistency  — whoever holds the lock must be in the "writing" state
+#                      (no ghost holders, no stale lock after release)
+
+TAB_COUNT = 3
+
+action Init:
+  # -1 means the lock is free; 0/1/2 is the tab index that holds it.
+  lock_holder = -1
+  # Index maps directly to tab: tab_states[0] = Tab0, [1] = Tab1, [2] = Tab2
+  tab_states = ["idle" for i in range(TAB_COUNT)]
+
+# A tab asks the SharedWorker for write access.
+atomic action Request:
+  tab = oneof range(TAB_COUNT)
+  require tab_states[tab] == "idle"
+  tab_states[tab] = "requesting"
+
+# The worker grants the lock — only ever when it is free.
+atomic action Acquire:
+  tab = oneof range(TAB_COUNT)
+  require tab_states[tab] == "requesting"
+  require lock_holder == -1
+  lock_holder = tab
+  tab_states[tab] = "writing"
+
+# The write completes and the lock is released.
+atomic action Release:
+  tab = oneof range(TAB_COUNT)
+  require tab_states[tab] == "writing"
+  tab_states[tab] = "idle"
+  lock_holder = -1
+
+
+# Safety: at most one tab is writing at any point in time.
+always assertion NoDataCorruption:
+  return len([s for s in tab_states if s == "writing"]) <= 1
+
+# Consistency: whoever holds the lock must actually be writing.
+always assertion LockConsistency:
+  return lock_holder == -1 or tab_states[lock_holder] == "writing"

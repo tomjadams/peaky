@@ -1,0 +1,138 @@
+# Peaky CI automation configuration
+#
+# This file configures the CI Automation components (containers/ci-automation)
+# included in .gitlab-ci.yml. It is read by the `ci-automation-mr` job.
+# Each feature is enabled by adding its own block under `features:`.
+# A feature is enabled when its block is present, unless `enabled: false`
+# is set explicitly.
+features:
+  size:
+    # Label prefix applied to all size labels.
+    label_prefix: "size/"
+    # Thresholds are inclusive upper bounds. Anything larger than the
+    # largest threshold falls through to the fallback label.
+    thresholds:
+      - max: 100
+        label: "XS"
+      - max: 400
+        label: "S"
+      - max: 1000
+        label: "M"
+      - max: 3000
+        label: "L"
+      - max: 6000
+        label: "XL"
+    fallback_label: "XXL"
+    # Which sizes trigger a comment on the MR.
+    comment_on: ["XL", "XXL"]
+    # Glob patterns for files that should not count toward the size total.
+    ignore:
+      - "pnpm-lock.yaml"
+      - "*.lock"
+      - "services/internal/catalog/data/*.snapshot.json"
+  mr_title:
+    # Conventional-commit types allowed in the MR title. The check looks at
+    # the squash title only, not individual commit messages.
+    allowed_types:
+      - feat
+      - fix
+      - docs
+      - chore
+      - refactor
+      - test
+      - perf
+      - build
+      - ci
+      - style
+      - revert
+    # Allow Draft:/WIP:/wip: prefixes while the MR is still being prepared.
+    allow_draft_prefix: true
+  mr_requires_epic:
+    # Enforces MRs link at least one issue and whether it's linked to an epic.
+    # This is a hard block to ensure traceability and time tracking.
+    block_label: do-not-merge
+    # Allowlist automated housekeeping MRs that do not represent user-facing
+    # work and therefore have no issue/epic to link. Each rule must match at
+    # least one criterion (source_branch, title, author, or labels) before it
+    # can bypass the gate.
+    skip:
+      - source_branch: "changelog/*"
+        title: "chore(changelog): update changelog"
+        reason: "Automated daily changelog update from git-cliff; no user story to link."
+  mr_append_issue_refs:
+    # Append linked issue to the MR title as suffix to carry it into changelog.md.
+    append_to_title: true
+  mr_assign_author:
+    # Assign the MR author as the default assignee when the MR is unassigned.
+    # Set `enabled: false` to opt out. This feature has no other options.
+  mr_override_merge_check:
+    # TEMPORARILY DISABLED until /merge-check v2 design is implemented and
+    # tested. The v2 design eliminates the unbounded review-fix-recheck loop
+    # by making verification bounded and removing reviewer fatigue. Re-enable
+    # by deleting `enabled: false` once v2 lands.
+    enabled: false
+    # Reads `attestations/mr-<iid>.md`; when `attestation.override` is
+    # well-formed, adds `override:merge-check` (idempotent) and a note
+    # in the CI Governance report. No configuration today.
+  mr_auto_label:
+    # Apply project labels based on changed file paths. Rules are evaluated in
+    # order; a label is added when at least one changed file matches any of its
+    # glob patterns. Managed labels are removed when no rule matches.
+    remove_unmatched: true
+    rules:
+      - label: backend
+        patterns:
+          - "services/cmd/**"
+      - label: sync-engine
+        patterns:
+          - "services/internal/syncengine/**"
+          - "services/internal/sse/**"
+      - label: authz
+        patterns:
+          - "services/internal/authz/**"
+      - label: authn
+        patterns:
+          - "server/utils/auth/**"
+          - "server/routes/auth/**"
+          - "server/api/_auth/**"
+          - "app/middleware/auth.global.ts"
+          - "app/composables/useAuth.ts"
+          - "app/pages/auth/**"
+          - "app/models/session.ts"
+      - label: frontend
+        patterns:
+          - "app/**"
+      - label: ui
+        patterns:
+          - "app/**"
+      - label: migrations
+        patterns:
+          - "shared/db/migrations/**"
+          - "shared/db/schema/**"
+          - "services/internal/dbmigrate/**"
+      - label: api
+        patterns:
+          - "server/**"
+      - label: dx
+        patterns:
+          - ".factory/**"
+      - label: ci-cd
+        patterns:
+          - ".gitlab-ci.yml"
+          - ".github/**"
+          - ".gitlab/**"
+          - "Makefile"
+      - label: openspec
+        patterns:
+          - "openspec/**"
+      - label: formal-verification
+        patterns:
+          - "formal_verification/**"
+      - label: documentation
+        patterns:
+          - "site/docs/**"
+      - label: dependencies
+        patterns:
+          - "pnpm-lock.yaml"
+          - "go.sum"
+          - "package.json"

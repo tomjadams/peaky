@@ -1,0 +1,18 @@
+{
+  "extends": "../.nuxt/tsconfig.json",
+  "compilerOptions": {
+    // Vitest transpiles tests without semantic typechecking today. Keep this
+    // editor project aligned with that behavior while still providing Nuxt's
+    // module mode, generated declarations, and path aliases to every test.
+    "noCheck": true,
+    "noEmit": true
+  },
+  "include": [
+    "./**/*.ts",
+    "../.nuxt/**/*.d.ts",
+    "../app/**/*.d.ts",
+    "../shared/**/*.d.ts",
+    "../*.d.ts"
+  ],
+  "exclude": ["../node_modules", "../.nuxt/dev", "../.output"]
+}

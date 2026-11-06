@@ -1,0 +1,50 @@
+{
+  "featureId": "applications-mutable-store",
+  "reviewedAt": "2026-03-06T10:00:00.000Z",
+  "commitId": "280816d",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid implementation that correctly extracts hardcoded application data into a shared mutable in-memory store, wires all three bulk endpoints (delete, archive, transfer) to mutate the store, and aligns the request body field name from 'applicationIds' to 'ids' to match the frontend useBulkActions composable. The code is clean, follows existing patterns (matches the templates-mutable-store approach), and has thorough test coverage with 26 unit tests plus updated integration tests. All expectedBehavior items and fulfills are covered.",
+    "issues": [
+      {
+        "file": "server/data/applications.ts",
+        "line": 1,
+        "severity": "non_blocking",
+        "description": "ApplicationRecord interface is defined locally instead of in app/models/ per AGENTS.md convention ('Types live in app/models/ — import from there, don't duplicate'). However, no existing Application type exists in app/models/, so this is pragmatic. The templates store imports types from app/models/ because those types already existed there."
+      },
+      {
+        "file": "server/api/applications/bulk/delete.post.ts",
+        "line": 12,
+        "severity": "non_blocking",
+        "description": "The 'ids as string[]' cast after the Array.isArray check doesn't validate that array elements are actually strings. A request with { ids: [123, null] } would pass validation but create a Set with non-string values. Acceptable for mock data but worth noting. Same pattern in archive.post.ts and transfer.post.ts."
+      },
+      {
+        "file": "server/api/applications/bulk/delete.post.ts",
+        "line": 4,
+        "severity": "non_blocking",
+        "description": "AGENTS.md recommends 'Use Zod for request body validation (see server/utils/schemas.ts)' but manual validation is used instead. However, the sibling templates-mutable-store feature also uses manual validation for its mutation endpoints, so this is consistent with the actual codebase pattern even if it diverges from the documented convention."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "AGENTS.md says 'Use Zod for request body validation' but both the applications and templates bulk/mutation endpoints use manual if-checks instead of Zod schemas. The actual codebase pattern is mixed: Zod is used for complex domain objects (rules, notes, attachments in server/utils/schemas.ts) but simple field validation (ids array, newOwner string) is done manually. AGENTS.md should clarify when Zod is expected vs when manual checks are acceptable.",
+      "evidence": "server/api/applications/bulk/delete.post.ts:4-9 uses manual check. server/api/templates/index.post.ts and [id].put.ts also use manual readBody without Zod. Only server/api/reviews/[id]/pillars/[pillarId]/notes.put.ts imports from schemas.ts."
+    },
+    {
+      "area": "conventions",
+      "observation": "AGENTS.md says 'Types live in app/models/ — import from there, don't duplicate' but there is no Application type in app/models/. The worker pragmatically defined ApplicationRecord locally in server/data/applications.ts. If the convention is strict, a shared Application type should be created in app/models/. If the convention allows local types for data stores without a frontend model, AGENTS.md should say so.",
+      "evidence": "server/data/applications.ts:1-8 defines ApplicationRecord locally. server/data/templates.ts imports from app/models/ (types existed there). app/models/ has review.ts and template.ts but no application.ts."
+    },
+    {
+      "area": "conventions",
+      "observation": "The bulk action field name convention is now 'ids' (matching frontend useBulkActions.ts) but app/models/review.ts still has 'applicationIds' as a field on the ReviewSummary type. These are different contexts (review model field vs bulk action request body) but future workers might be confused by the inconsistency if they see 'applicationIds' in the review model and 'ids' in the bulk endpoints.",
+      "evidence": "app/models/review.ts:29 has 'applicationIds?: string[]' on the review model. All bulk endpoints now use 'ids' per useBulkActions.ts convention."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The implementation fully covers all feature requirements: data extracted into mutable store (server/data/applications.ts), GET endpoints read from store, bulk delete/archive/transfer mutate the store correctly, and the field name mismatch (applicationIds→ids) is resolved consistently by aligning the server to match the frontend useBulkActions composable. 26 unit tests with thorough coverage of mutations, persistence, error paths, and seed data preservation. No blocking issues found. Three non-blocking observations: local type definition instead of app/models/, unsafe string[] cast on ids array elements, and manual validation instead of Zod. Shared state observations note convention gaps in AGENTS.md around Zod usage expectations and type location rules."
+}

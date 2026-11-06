@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/ReviewNoteDeleted.v1.json",
+  "title": "ReviewNoteDeleted.v1",
+  "description": "Emitted when a note is deleted from a review scope.",
+  "x-peaky-event": {
+    "type": "ReviewNoteDeleted.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "scopeType": {
+      "type": "string",
+      "enum": [
+        "question",
+        "pillar",
+        "review"
+      ],
+      "description": "The scope context for this resource (e.g. 'question', 'pillar', 'review').",
+      "markdownDescription": "The scope context for this resource (e.g. 'question', 'pillar', 'review')."
+    },
+    "scopeId": {
+      "type": "string",
+      "description": "ID of the scoped resource this item is attached to.",
+      "markdownDescription": "ID of the scoped resource this item is attached to."
+    }
+  },
+  "required": [
+    "scopeType",
+    "scopeId"
+  ],
+  "additionalProperties": false
+}

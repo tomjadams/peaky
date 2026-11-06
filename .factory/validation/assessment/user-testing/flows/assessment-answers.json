@@ -1,0 +1,68 @@
+{
+  "flowId": "assessment-answers",
+  "testedAt": "2026-03-06T12:00:00.000Z",
+  "credentials": {
+    "account": "curl-api-tester",
+    "namespace": "review-006"
+  },
+  "toolsUsed": ["curl"],
+  "assertions": {
+    "VAL-ASM-001": {
+      "status": "pass",
+      "title": "Yes/No answer persists after browser refresh",
+      "steps": [
+        { "action": "POST /api/reviews/review-006/answers with {questionId: q-rel-001, answer: yes}", "expected": "200 with {success: true}", "observed": "HTTP 200, {success: true}" },
+        { "action": "GET /api/reviews/review-006/questions and check q-rel-001", "expected": "answer field = 'yes'", "observed": "answer: 'yes', naReason: null" }
+      ],
+      "evidence": "POST /api/reviews/review-006/answers -> 200 {success:true}. GET /api/reviews/review-006/questions -> q-rel-001 has answer='yes'."
+    },
+    "VAL-ASM-002": {
+      "status": "pass",
+      "title": "NA answer with reason persists",
+      "steps": [
+        { "action": "POST /api/reviews/review-006/answers with {questionId: q-rel-002, answer: na, naReason: not-applicable}", "expected": "200 with {success: true}", "observed": "HTTP 200, {success: true}" },
+        { "action": "GET /api/reviews/review-006/questions and check q-rel-002", "expected": "answer='na', naReason='not-applicable'", "observed": "answer: 'na', naReason: 'not-applicable'" }
+      ],
+      "evidence": "POST /api/reviews/review-006/answers -> 200 {success:true}. GET -> q-rel-002 has answer='na', naReason='not-applicable'."
+    },
+    "VAL-ASM-003": {
+      "status": "pass",
+      "title": "Checklist answer persistence",
+      "steps": [
+        { "action": "POST /api/reviews/review-006/answers with {questionId: q-rel-004, answer: {checked: [cli-1, cli-3], na: []}}", "expected": "200 with {success: true}", "observed": "HTTP 200, {success: true}" },
+        { "action": "GET /api/reviews/review-006/questions and check q-rel-004", "expected": "answer.checked = [cli-1, cli-3], answer.na = []", "observed": "answer: {checked: ['cli-1', 'cli-3'], na: []}" }
+      ],
+      "evidence": "POST /api/reviews/review-006/answers -> 200 {success:true}. GET -> q-rel-004 has answer={checked:['cli-1','cli-3'],na:[]}."
+    },
+    "VAL-ASM-004": {
+      "status": "pass",
+      "title": "Progress reflects saved answers after refresh",
+      "steps": [
+        { "action": "GET /api/reviews/review-006/questions after saving 6 answers (q-rel-001, q-rel-002, q-rel-004, q-sec-001, q-sec-002, q-inf-001)", "expected": "6 out of 11 questions have non-null answers", "observed": "6/11 questions answered — q-rel-001=yes, q-rel-002=na, q-rel-004=checklist, q-sec-001=yes, q-sec-002=no, q-inf-001=yes" }
+      ],
+      "evidence": "GET /api/reviews/review-006/questions -> 6/11 questions have non-null answer fields. Progress correctly reflects server-persisted state."
+    },
+    "VAL-ASM-006": {
+      "status": "pass",
+      "title": "Answers persist in survey mode",
+      "steps": [
+        { "action": "POST answer q-sec-001=yes", "expected": "200", "observed": "HTTP 200, {success: true}" },
+        { "action": "POST answer q-sec-002=no", "expected": "200", "observed": "HTTP 200, {success: true}" },
+        { "action": "POST answer q-inf-001=yes", "expected": "200", "observed": "HTTP 200, {success: true}" },
+        { "action": "GET /api/reviews/review-006/questions and check all three", "expected": "All three answers present", "observed": "q-sec-001=yes, q-sec-002=no, q-inf-001=yes — all persisted" }
+      ],
+      "evidence": "POST answers for 3 questions sequentially (simulating survey mode) -> all 200. GET confirms all 3 answers persisted alongside previously saved answers."
+    },
+    "VAL-ASM-007": {
+      "status": "pass",
+      "title": "Answers loadable from server on page load",
+      "steps": [
+        { "action": "GET /api/reviews/review-006/questions", "expected": "Previously answered questions have non-null answer fields", "observed": "6 questions have non-null answers: q-rel-001=yes, q-rel-002=na, q-rel-004={checked:[cli-1,cli-3],na:[]}, q-sec-001=yes, q-sec-002=no, q-inf-001=yes. 5 unanswered questions have answer=null." }
+      ],
+      "evidence": "GET /api/reviews/review-006/questions returns all 11 questions. 6 previously answered questions have non-null answer fields with correct values. 5 unanswered remain null."
+    }
+  },
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 6 assertions: all 6 passed. Answer persistence (yes/no, NA with reason, checklist), progress tracking, sequential survey-mode saving, and GET-based answer loading all work correctly for review-006."
+}

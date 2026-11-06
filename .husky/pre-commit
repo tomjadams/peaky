@@ -1,0 +1,41 @@
+# TS / Vue / Markdown gate
+# Only runs when relevant files are staged. Generates .nuxt/eslint.config.mjs
+# on first run if missing — nuxt prepare is fast (~2s) and subsequent runs hit
+# the Vite cache.
+if git diff --cached --name-only --diff-filter=ACM | grep -qE '\.(js|jsx|ts|tsx|vue|md)$'; then
+  if [ ! -f ".nuxt/eslint.config.mjs" ]; then
+    pnpm nuxt prepare --silent || exit 1
+  fi
+  pnpm exec lint-staged || exit 1
+fi
+
+# Go gate — runs when services/**/*.go files are staged.
+# golangci-lint --new-from-rev HEAD reports issues only in lines that differ
+# from HEAD (equivalent to "only lint staged changes"), and go test ./... relies
+# on the build cache to skip unchanged packages automatically.
+if git diff --cached --name-only --diff-filter=ACM | grep -q "^services/.*\.go$"; then
+  echo "[pre-commit] Go files staged"
+  (cd services && golangci-lint run --new-from-rev HEAD) || exit 1
+  (cd services && go test ./...) || exit 1
+fi
+
+# Python CI gate — runs when scripts/ci/**/*.py files are staged.
+# The merge-check package has its own ruff config under .factory/skills/merge-check/,
+# but scripts/ci/ has a separate pyproject.toml. Without this hook, a ruff error in
+# scripts/ci/ escapes to CI because local validation only runs the package's ruff.
+if git diff --cached --name-only --diff-filter=ACM | grep -qE '^scripts/ci/.*\.py$'; then
+  echo "[pre-commit] Python files staged in scripts/ci/"
+  (cd scripts/ci && uv run --frozen ruff check .) || exit 1
+fi
+
+# Threat-model drift gate — the STRIDE threat model
+# (site/docs/development/threat-model.md + the local-first security
+# walkthrough) mirrors constants and file paths from the code;
+# tests/guards/threat-model-drift.test.ts is the mechanical link. Run the
+# guard when a mirrored source is staged, or when any file the docs might
+# cite is deleted (renames appear as a delete with --no-renames).
+if git diff --cached --name-only --no-renames --diff-filter=ACMD | grep -qE '^(site/docs/development/threat-model\.md|site/docs/development/walkthroughs/local-first/security\.md|SECURITY\.md|AGENTS\.md|site/zensical\.toml|nuxt\.config\.ts|services/internal/syncengine/push\.go|services/internal/syncengine/entity/registry\.go|tests/guards/threat-model-drift\.test\.ts|vitest\.threat-model-drift\.config\.ts)$' \
+  || git diff --cached --name-only --no-renames --diff-filter=D | grep -qE '^(app|server|services|shared|tests|formal_verification|explainers|\.factory|\.agents)/'; then
+  echo "[pre-commit] Threat-model drift guard"
+  ./node_modules/.bin/vitest run --config vitest.threat-model-drift.config.ts || exit 1
+fi

@@ -1,0 +1,61 @@
+/* Keep long-form documentation readable without scaling the navigation chrome. */
+.md-typeset {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  letter-spacing: 0;
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  font-size: 0.85rem;
+}
+
+[data-md-color-scheme="slate"]
+  .md-sidebar--primary
+  .md-nav__item--section
+  > .md-nav__link {
+  color: rgba(226, 228, 233, 0.82);
+}
+
+.md-typeset .grid.explainer-cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 24rem));
+}
+
+/* ────────────────────────────────────────────────────────────────────
+ * Health cards — subtle "good vs trouble" contrast
+ *
+ * Opt-in via the `health-cards` class on a grid block:
+ *
+ *   <div class="grid cards health-cards" markdown>
+ *
+ * The pattern always pairs a positive card (first <li>) with a
+ * cautionary card (second <li>). Subtle on purpose — a leading-edge
+ * accent plus a faint tint, no glow. Works in both light and dark.
+ * ──────────────────────────────────────────────────────────────────── */
+.md-typeset .grid.cards.health-cards > ul > li:nth-child(1) {
+  border-left: 3px solid #2e7d32; /* green 800 */
+  background: rgba(46, 125, 50, 0.04);
+}
+.md-typeset .grid.cards.health-cards > ul > li:nth-child(2) {
+  border-left: 3px solid #ed6c02; /* amber 800 */
+  background: rgba(237, 108, 2, 0.04);
+}
+
+/* Dark mode: lift the tint a touch so the accent stays visible against
+ * the darker card background. */
+[data-md-color-scheme="slate"]
+  .md-typeset
+  .grid.cards.health-cards
+  > ul
+  > li:nth-child(1) {
+  background: rgba(102, 187, 106, 0.06); /* green 400 */
+  border-left-color: #66bb6a;
+}
+[data-md-color-scheme="slate"]
+  .md-typeset
+  .grid.cards.health-cards
+  > ul
+  > li:nth-child(2) {
+  background: rgba(255, 167, 38, 0.06); /* amber 400 */
+  border-left-color: #ffa726;
+}

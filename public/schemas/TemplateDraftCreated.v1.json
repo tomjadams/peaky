@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/TemplateDraftCreated.v1.json",
+  "title": "TemplateDraftCreated.v1",
+  "description": "Emitted when a new template draft is created.",
+  "x-peaky-event": {
+    "type": "TemplateDraftCreated.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Display name of the newly created template draft.",
+      "markdownDescription": "Display name of the newly created template draft."
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "additionalProperties": false
+}

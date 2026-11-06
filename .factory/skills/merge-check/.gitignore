@@ -1,0 +1,10 @@
+# Local dev artifacts for the merge_check package — never shipped with the skill.
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+# Run artifacts created by the discrimination sensor and planner
+.factory/merge-check-runs/

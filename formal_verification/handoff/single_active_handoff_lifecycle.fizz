@@ -1,0 +1,173 @@
+# WHY THIS SPEC EXISTS
+#
+# A Review may have one active device-local Handoff. Closing freezes a history
+# snapshot. Manual closing releases unresolved members for a later cycle, while
+# only the latest manually closed cycle may reopen.
+#
+# MODELS (paths checked by tests/guards/spec-drift.test.ts)
+#
+#   app/services/handoff/localLifecycle.ts — lifecycle and ownership rules
+#   app/services/handoff/handoffWrite.ts    — selection claims local ownership
+#
+# WHAT WE PROVE
+#
+#   AtMostOneActiveHandoff — no state contains two active sequences
+#   PracticeOwnerReferencesExistingHandoff — every current owner is valid
+#   ReopenOnlyLatestManualHandoff — only the latest manual cycle may reopen
+#   ManualCloseReleasesOriginalOwnership — unresolved members leave the closed cycle
+#   AutomaticCompletionResolvedEveryFrozenMember — auto closing is non-empty and resolved
+#   SequencesAreContiguous — sequence N starts only after N-1 closes
+#   ReopenedManualCycleIsReachable — the bounded graph includes manual reopen
+#   ReleasedManualMemberIsReachable — the bounded graph includes unresolved release
+
+MAX_SEQUENCES = 2
+PRACTICES = ("p1", "p2", "p3")
+
+atomic func ActiveSequences():
+    return [seq for seq in handoff_status if handoff_status[seq] == "active"]
+
+atomic action Init:
+    handoff_status = {}
+    handoff_members = {}
+    completed_members = {}
+    completion_mode = {}
+    unresolved_at_completion = {}
+    practice_owner = {}
+    resolved_practices = set()
+    stale_attempts = 0
+    next_sequence = 1
+
+atomic action Idle:
+    pass
+
+atomic action SelectPractice:
+    practice = oneof [p for p in PRACTICES if p not in practice_owner]
+    active = ActiveSequences()
+    if len(active) == 0:
+        require next_sequence <= MAX_SEQUENCES
+        sequence = next_sequence
+        handoff_status[sequence] = "active"
+        handoff_members[sequence] = []
+    else:
+        sequence = active[0]
+    practice_owner[practice] = sequence
+    handoff_members[sequence] = handoff_members[sequence] + [practice]
+
+atomic action RemovePractice:
+    active = ActiveSequences()
+    require len(active) == 1
+    sequence = active[0]
+    practice = oneof handoff_members[sequence]
+    handoff_members[sequence] = [p for p in handoff_members[sequence] if p != practice]
+
+atomic action ReselectPractice:
+    active = ActiveSequences()
+    require len(active) == 1
+    sequence = active[0]
+    practice = oneof [p for p in practice_owner if practice_owner[p] == sequence and p not in handoff_members[sequence]]
+    handoff_members[sequence] = handoff_members[sequence] + [practice]
+
+atomic action ResolvePractice:
+    practice = oneof [p for p in practice_owner if p not in resolved_practices]
+    resolved_practices.add(practice)
+
+atomic action CompleteManually:
+    active = ActiveSequences()
+    require len(active) == 1
+    sequence = active[0]
+    members = handoff_members[sequence]
+    require len(members) > 0
+    unresolved_members = [p for p in members if p not in resolved_practices]
+    completed_members[sequence] = members
+    unresolved_at_completion[sequence] = len(unresolved_members)
+    completion_mode[sequence] = "manual"
+    handoff_status[sequence] = "completed"
+    practice_owner = {p: practice_owner[p] for p in practice_owner if p not in unresolved_members}
+    next_sequence = sequence + 1
+
+atomic action CompleteAutomatically:
+    active = ActiveSequences()
+    require len(active) == 1
+    sequence = active[0]
+    members = handoff_members[sequence]
+    require len(members) > 0
+    require len([p for p in members if p not in resolved_practices]) == 0
+    completed_members[sequence] = members
+    unresolved_at_completion[sequence] = 0
+    completion_mode[sequence] = "auto"
+    handoff_status[sequence] = "completed"
+    next_sequence = sequence + 1
+
+atomic action ReopenLatestManual:
+    active = ActiveSequences()
+    require len(active) == 0
+    candidates = [seq for seq in handoff_status if handoff_status[seq] == "completed" and completion_mode.get(seq, "none") == "manual"]
+    sequence = oneof candidates
+    require sequence == next_sequence - 1
+    members = completed_members[sequence]
+    require len([p for p in members if p in practice_owner and practice_owner[p] != sequence]) == 0
+    handoff_status[sequence] = "active"
+    for practice in members:
+        practice_owner[practice] = sequence
+    handoff_members[sequence] = members
+    next_sequence = sequence
+
+atomic action StaleSelectionArrives:
+    require stale_attempts == 0
+    completed = [seq for seq in handoff_status if handoff_status[seq] == "completed"]
+    sequence = oneof completed
+    practice = oneof [p for p in PRACTICES if p not in practice_owner]
+    stale_attempts = stale_attempts + 1
+
+always assertion AtMostOneActiveHandoff:
+    return len([seq for seq in handoff_status if handoff_status[seq] == "active"]) <= 1
+
+always assertion PracticeOwnerReferencesExistingHandoff:
+    for practice in practice_owner:
+        if practice_owner[practice] not in handoff_status:
+            return False
+    return True
+
+always assertion ReopenOnlyLatestManualHandoff:
+    for sequence in completed_members:
+        if handoff_status[sequence] == "active":
+            if completion_mode[sequence] != "manual" or sequence != next_sequence:
+                return False
+    return True
+
+always assertion ManualCloseReleasesOriginalOwnership:
+    for sequence in completion_mode:
+        if completion_mode[sequence] == "manual" and handoff_status[sequence] == "completed":
+            for practice in completed_members[sequence]:
+                if practice not in resolved_practices and practice_owner.get(practice, 0) == sequence:
+                    return False
+    return True
+
+always assertion AutomaticCompletionResolvedEveryFrozenMember:
+    for sequence in completion_mode:
+        if completion_mode[sequence] == "auto":
+            if len(completed_members[sequence]) == 0:
+                return False
+            if len([p for p in completed_members[sequence] if p not in resolved_practices]) > 0:
+                return False
+    return True
+
+always assertion SequencesAreContiguous:
+    for sequence in handoff_status:
+        if sequence > 1 and handoff_status.get(sequence - 1, "missing") != "completed":
+            return False
+    return True
+
+exists assertion ReopenedManualCycleIsReachable:
+    for sequence in completed_members:
+        if handoff_status[sequence] == "active" and completion_mode[sequence] == "manual":
+            return True
+    return False
+
+exists assertion ReleasedManualMemberIsReachable:
+    for sequence in completion_mode:
+        if completion_mode[sequence] == "manual" and handoff_status[sequence] == "completed":
+            for practice in completed_members[sequence]:
+                if practice not in resolved_practices and practice not in practice_owner:
+                    return True
+    return False

@@ -1,0 +1,84 @@
+# WHY THIS SPEC EXISTS
+#
+# SyncEngine uses an AIMD (Additive Increase / Multiplicative Decrease)
+# controller to adapt how many outbox items are pushed per sync cycle. On
+# success it grows by 50%; on failure it halves. This is good for throughput,
+# but there is a latent integer-division hazard:
+#
+#   Math.floor(1 / 2) == 0    →  would freeze sync permanently
+#
+# The clamp to config.min (default 1) is the only guard. This spec exhaustively
+# tests every success/failure interleaving to prove the clamp fires every time
+# batch_size would otherwise reach zero.
+#
+# WHAT WE MODEL
+#
+# ConcurrencyController:
+#   onSuccess  — grow by 50% but by at least 1, clamp to max (20)
+#   onFailure  — divide by 2, clamp to min (1)
+#
+# FizzBee fires both actions in any order, any number of times. We do not
+# use `require` guards so the checker freely mixes success/failure sequences.
+#
+# The "by at least 1" floor is not cosmetic: proportional growth alone stalls at
+# MIN_SIZE, because 1 * 3 // 2 == 1. Neither assertion below catches that (the
+# batch size stays in bounds and non-zero while sync crawls at one item per
+# cycle), and this model mirrored the stall until review caught it in the
+# TypeScript. Recovery is a liveness property over a two-element domain, so it is
+# asserted exhaustively in tests/unit/services/sync/SyncEngine.concurrency.test.ts
+# rather than modelled with history state here.
+#
+# MODELS (paths and constants checked by tests/guards/spec-drift.test.ts)
+#
+#   app/services/sync/ConcurrencyController.ts — the class this mirrors; its
+#     default config supplies MIN_SIZE, MAX_SIZE and the initial batch_size
+#
+# WHY A ROLE
+#
+# The batch size lives in a Controller role rather than as a top-level state
+# variable. Both forms verify identically (13 states), but fizzbee-mbt only
+# compares system-under-test state through a role adapter — implementing
+# getState() on a top-level model adapter crashes the MBT server. Keeping the
+# state in a role is what lets formal_verification/mbt/ drive the real
+# ConcurrencyController through this state space. See section 9 of
+# site/docs/development/walkthroughs/formal-verification.md.
+#
+# WHAT WE PROVE
+#
+#   BatchSizeInBounds — batch_size is always in [MIN_SIZE, MAX_SIZE] under all
+#                       interleavings
+#   NeverZero         — batch_size is never zero (sync would freeze)
+#
+# NOTE ON INTEGER ARITHMETIC
+#
+# FizzBee has no floats. `batch_size * 3 // 2` (floor division) is the integer
+# equivalent of TypeScript's `Math.floor(batchSize * 1.5)`.
+#
+# The bounds are top-level constants, not state variables: they are read-only
+# config in ConcurrencyController.ts, and keeping them out of the state keeps
+# the state space to the reachable batch sizes alone.
+
+MIN_SIZE = 1    # config.min
+MAX_SIZE = 20   # config.max
+
+role Controller:
+  action Init:
+    self.batch_size = 5   # config.initial in ConcurrencyController.ts
+
+  # onSuccess(): grow by 50% but never by less than 1, stay within max.
+  atomic action OnSuccess:
+    self.batch_size = min(MAX_SIZE, max(self.batch_size + 1, self.batch_size * 3 // 2))
+
+  # onFailure(): halve, stay within min — this is the critical clamp.
+  atomic action OnFailure:
+    self.batch_size = max(MIN_SIZE, self.batch_size // 2)
+
+action Init:
+  controller = Controller()
+
+
+always assertion BatchSizeInBounds:
+  return controller.batch_size >= MIN_SIZE and controller.batch_size <= MAX_SIZE
+
+always assertion NeverZero:
+  return controller.batch_size >= 1

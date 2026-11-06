@@ -1,0 +1,73 @@
+{
+  "actors": [
+    {
+      "id": "actor_dev",
+      "email": "dev@peaky.local",
+      "name": "Dev (fallback)",
+      "entitlements": {
+        "review:*": { "canView": true, "canEdit": true },
+        "product:*": { "canView": true, "canEdit": true },
+        "template:*": { "canView": true, "canEdit": true }
+      }
+    },
+    {
+      "id": "actor_alice",
+      "email": "alice@peaky.local",
+      "name": "Alice",
+      "entitlements": {
+        "review:review-001": { "canView": true, "canEdit": true },
+        "review:review-002": { "canView": true, "canEdit": true },
+        "product:*": { "canView": true, "canEdit": false },
+        "template:*": { "canView": true, "canEdit": false }
+      }
+    },
+    {
+      "id": "actor_bob",
+      "email": "bob@peaky.local",
+      "name": "Bob",
+      "entitlements": {
+        "review:review-001": { "canView": true, "canEdit": true },
+        "product:*": { "canView": true, "canEdit": false },
+        "template:*": { "canView": true, "canEdit": false }
+      }
+    },
+    {
+      "id": "actor_carol",
+      "email": "carol@peaky.local",
+      "name": "Carol",
+      "entitlements": {
+        "review:review-002": { "canView": true, "canEdit": true },
+        "review:review-003": { "canView": true, "canEdit": true },
+        "product:*": { "canView": true, "canEdit": false },
+        "template:*": { "canView": true, "canEdit": false }
+      }
+    },
+    {
+      "id": "actor_reviewonly",
+      "email": "reviewonly@peaky.local",
+      "name": "Review Only",
+      "entitlements": {
+        "review:*": { "canView": true, "canEdit": false }
+      }
+    },
+    {
+      "id": "actor_scoped",
+      "email": "scoped@peaky.local",
+      "name": "Scoped",
+      "entitlements": {
+        "review:review-001": { "canView": true, "canEdit": true },
+        "product:prod-1": { "canView": true, "canEdit": false }
+      }
+    },
+    {
+      "id": "actor_admin",
+      "email": "admin@peaky.local",
+      "name": "Admin",
+      "entitlements": {
+        "review:*": { "canView": true, "canEdit": true },
+        "product:*": { "canView": true, "canEdit": true },
+        "template:*": { "canView": true, "canEdit": true }
+      }
+    }
+  ]
+}

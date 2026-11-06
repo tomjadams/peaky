@@ -1,0 +1,44 @@
+{
+  "featureId": "fix-phantom-template-in-sidebar",
+  "reviewedAt": "2026-03-06T13:10:00.000Z",
+  "commitId": "c64e51c",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix correctly addresses the phantom template bug. The inactiveTemplates computed property now sources from review.value.templates instead of the global useTemplatesFetch() store. Field mapping from ReviewTemplate shape (templateId, templateName, templateVersion) to display shape (id, name, version, status) is correct. The unused useTemplatesFetch import was cleanly removed. The filter logic correctly excludes the active template by comparing templateId to activeTemplate.value.id. All 602 tests pass and typecheck is clean.",
+    "issues": [
+      {
+        "file": "app/components/TemplateSelectorSidebar.vue",
+        "line": 235,
+        "severity": "non_blocking",
+        "description": "Status mapping uses currentReview.status.toUpperCase() for inactive templates. ReviewStatus is 'draft' | 'in-progress' | 'completed' | 'archived', but statusBadgeClass() only handles 'ACTIVE', 'DRAFT', and 'REVIEW' — so 'IN-PROGRESS', 'COMPLETED', and 'ARCHIVED' all hit the default gray style. This is consistent with how activeTemplate already handles status (same pattern on line 216), so it's not a regression from this fix, but is a pre-existing display issue."
+      },
+      {
+        "file": "app/components/TemplateSelectorSidebar.vue",
+        "line": 226,
+        "severity": "non_blocking",
+        "description": "No unit test was added for the inactiveTemplates computed property. While the existing 602 tests pass, a targeted test verifying that inactiveTemplates filters from review templates (not global templates) would prevent regression. This is understandable for a small computed property fix but worth noting."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "Worker was assigned backend-worker skill for a pure frontend Vue component fix (computed property change). The backend-worker procedure (write tests first, curl endpoints, manual verification with curl) doesn't apply to frontend-only component logic. Worker correctly flagged this in skillFeedback.suggestedChanges: 'A frontend-worker skill would be more appropriate for this type of task.' The orchestrator should route frontend component fixes to a frontend-focused skill.",
+      "evidence": "Feature skillName='backend-worker', but diff only touches app/components/TemplateSelectorSidebar.vue. Handoff skillFeedback.suggestedChanges confirms mismatch."
+    },
+    {
+      "area": "skills",
+      "observation": "Worker skipped 'pnpm lint' which is step 5 of the backend-worker skill procedure. Only ran pnpm test:run and pnpm typecheck. While this deviation is minor (lint is unlikely to catch computed property logic changes), the skill procedure explicitly requires it.",
+      "evidence": "Handoff verification.commandsRun only lists pnpm test:run and pnpm typecheck. Backend-worker SKILL.md step 5 says: 'Run pnpm lint — no lint errors.'"
+    },
+    {
+      "area": "conventions",
+      "observation": "The statusBadgeClass function only handles 'ACTIVE', 'DRAFT', and 'REVIEW' status values, but ReviewStatus type includes 'draft', 'in-progress', 'completed', 'archived'. When used with review.status.toUpperCase(), statuses like 'IN-PROGRESS', 'COMPLETED', and 'ARCHIVED' fall to the default case. This mismatch between ReviewStatus values and the badge class handler is a latent display bug that predates this fix.",
+      "evidence": "app/components/TemplateSelectorSidebar.vue lines 241-250 (statusBadgeClass) vs app/models/review.ts ReviewStatus type definition."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The fix correctly resolves the phantom template bug by changing inactiveTemplates to source from review.value.templates instead of the global useTemplatesFetch() store. Field mapping from ReviewTemplate (templateId/templateName/templateVersion) to display shape (id/name/version/status) is correct. Unused import removed. No regressions — 602 tests pass, typecheck clean. Two non-blocking observations: (1) status display uses review status for all templates which is consistent but has pre-existing badge class mismatch for most ReviewStatus values, (2) no new unit test added for the fix. Skill mismatch noted — backend-worker was assigned for a frontend-only fix."
+}

@@ -1,0 +1,39 @@
+{
+  "milestone": "core-stores",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 11,
+    "passed": 11,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-TPL-001",
+    "VAL-TPL-002",
+    "VAL-TPL-003",
+    "VAL-TPL-004",
+    "VAL-TPL-005",
+    "VAL-APP-001",
+    "VAL-APP-002",
+    "VAL-APP-003",
+    "VAL-APP-004",
+    "VAL-APP-005",
+    "VAL-APP-006"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added Flow Validator Guidance: API section with isolation rules, request formats, and evidence collection instructions",
+      "source": "setup"
+    },
+    {
+      "target": "user-testing.md",
+      "description": "Added known quirks about in-memory store reset on server restart and seed data counts",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null
+}

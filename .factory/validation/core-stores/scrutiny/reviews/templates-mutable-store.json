@@ -1,0 +1,50 @@
+{
+  "featureId": "templates-mutable-store",
+  "reviewedAt": "2026-03-06T10:15:00.000Z",
+  "commitId": "08159350fadaaa7a0309e441443a5ca2393feba0",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Implementation is solid and covers all required functionality. POST creates templates with unique IDs and 201 status, PUT updates existing templates with 404 handling, and publish sets status to 'active' with publishedAt. Both data structures (templateDetails record and templates summary array) are kept in sync. The worker correctly identified that the data store (server/data/templates.ts) already used const exports with mutable arrays/objects, so no changes were needed there. The GET endpoint already read from the mutable store. Tests are comprehensive with 18 cases covering all 9 expectedBehavior items. Two non-blocking issues found: missing Zod validation and incomplete summary sync on PUT.",
+    "issues": [
+      {
+        "file": "server/api/templates/index.post.ts",
+        "line": 5,
+        "severity": "non_blocking",
+        "description": "No Zod validation on request body. AGENTS.md and project conventions (see server/api/reviews/[id].patch.ts, server/api/teams/[id]/reviews.post.ts) require Zod schemas for request body validation. The POST endpoint uses readBody<Partial<TemplateDetail>> with TypeScript generics only — this provides no runtime validation. A malicious or malformed request could inject unexpected fields into the store."
+      },
+      {
+        "file": "server/api/templates/[id].put.ts",
+        "line": 23,
+        "severity": "non_blocking",
+        "description": "No Zod validation on request body. Same issue as POST — readBody<Partial<TemplateDetail>> provides no runtime validation. Existing mutation routes in the project use Zod safeParse for validation."
+      },
+      {
+        "file": "server/api/templates/[id].put.ts",
+        "line": 37,
+        "severity": "non_blocking",
+        "description": "PUT summary sync is incomplete. When updating the templates summary array (lines 37-42), only name, status, and updatedAt are synced. However, the Template interface also has version and description fields that could be changed via PUT. If a client sends { version: 'v2', description: 'new desc' }, the templateDetails record would be updated but the summary array would still show the old version and description. This causes data inconsistency between GET /api/templates (list) and GET /api/templates/[id] (detail)."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Template mutation endpoints (POST, PUT) do not use Zod validation for request bodies, while other mutation routes in the project (reviews/[id].patch.ts, teams/[id]/reviews.post.ts, orgs/[id]/preferences.patch.ts) consistently use Zod schemas. AGENTS.md mentions 'Use Zod for request body validation' but the worker did not follow this pattern. This may indicate the convention documentation is clear but enforcement is inconsistent.",
+      "evidence": "server/api/templates/index.post.ts:5 uses readBody<Partial<TemplateDetail>> (no Zod). Compare to server/api/reviews/[id].patch.ts:4 which uses z.object({...}) and safeParse. AGENTS.md under 'API Route Conventions' says 'Use Zod for request body validation'."
+    },
+    {
+      "area": "conventions",
+      "observation": "When syncing mutations between templateDetails (full record) and templates (summary array), not all shared fields are updated. The PUT endpoint only syncs name/status/updatedAt to the summary but the Template interface also has version and description. This dual-store pattern (detail record + summary array) is a source of subtle bugs if sync logic is incomplete. Future workers should be aware of this pattern.",
+      "evidence": "server/api/templates/[id].put.ts:37-42 syncs only name, status, updatedAt. But server/data/templates.ts summary entries also have version and description fields that differ from detail. Same pattern exists in index.post.ts:27-35 where the full set of fields is correctly synced on creation."
+    },
+    {
+      "area": "skills",
+      "observation": "Worker acknowledged deviating from the TDD (test-first) approach specified in the backend-worker skill, implementing first then writing tests. The worker's feedback suggests TDD works better for complex logic but for simple 'wiring' tasks, implement-first is more natural. This is a valid observation — the skill procedure could note that TDD is recommended but implement-first is acceptable for straightforward store wiring.",
+      "evidence": "Handoff skillFeedback.suggestedChanges: 'The backend-worker skill says to write tests first (RED) then implement (GREEN). In practice, since the data store just needed const->mutation wiring... implementing first and then writing tests was more natural.'"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Feature passes review. All three mutation endpoints (POST create, PUT update, POST publish) are correctly wired to the shared in-memory store with proper 404/400 error handling. Both data structures (templateDetails record and templates summary array) are kept in sync. 18 comprehensive unit tests cover all 9 expectedBehavior items including error paths and cross-request persistence. Two non-blocking issues identified: (1) missing Zod request body validation contrary to project conventions, and (2) incomplete field sync in PUT's summary array update (version and description not propagated). Neither issue blocks the feature's core functionality."
+}

@@ -1,0 +1,17 @@
+{
+  "milestone": "bugfixes",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null,
+  "notes": "No testable assertions for bugfixes milestone. All 3 completed bugfix features (fix-assessment-save-and-progress, fix-phantom-template-in-sidebar, fix-assessment-save-cleanup) have empty fulfills arrays. All 20 validation contract assertions were already validated as passed in prior milestones (core-stores, assessment). The bugfixes address code quality and correctness issues that don't map to new user-visible behavior assertions."
+}

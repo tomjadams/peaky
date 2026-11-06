@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/ReviewAttachmentDeleted.v1.json",
+  "title": "ReviewAttachmentDeleted.v1",
+  "description": "Emitted when an attachment is removed from a review scope.",
+  "x-peaky-event": {
+    "type": "ReviewAttachmentDeleted.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "attachmentId": {
+      "type": "string",
+      "description": "Unique identifier for the attachment.",
+      "markdownDescription": "Unique identifier for the attachment."
+    },
+    "scopeType": {
+      "type": "string",
+      "enum": [
+        "question",
+        "pillar",
+        "review"
+      ],
+      "description": "The scope context for this resource (e.g. 'question', 'pillar', 'review').",
+      "markdownDescription": "The scope context for this resource (e.g. 'question', 'pillar', 'review')."
+    },
+    "scopeId": {
+      "type": "string",
+      "description": "ID of the scoped resource this item is attached to.",
+      "markdownDescription": "ID of the scoped resource this item is attached to."
+    },
+    "filename": {
+      "type": "string",
+      "description": "Original filename as supplied by the user at upload time.",
+      "markdownDescription": "Original filename as supplied by the user at upload time."
+    },
+    "mimeType": {
+      "type": "string",
+      "description": "MIME type of the attachment, e.g. 'application/pdf'.",
+      "markdownDescription": "MIME type of the attachment, e.g. 'application/pdf'."
+    },
+    "fileSize": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Size of the attachment in bytes.",
+      "markdownDescription": "Size of the attachment in bytes."
+    }
+  },
+  "required": [
+    "attachmentId",
+    "scopeType",
+    "scopeId",
+    "filename",
+    "mimeType",
+    "fileSize"
+  ],
+  "additionalProperties": false
+}

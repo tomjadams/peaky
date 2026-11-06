@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/ReviewProgressUpdated.v1.json",
+  "title": "ReviewProgressUpdated.v1",
+  "description": "Emitted when per-pillar progress is recomputed, typically after a checkpoint save.",
+  "x-peaky-event": {
+    "type": "ReviewProgressUpdated.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "pillarSlug": {
+      "type": "string",
+      "description": "URL-safe slug of the pillar whose progress was recomputed (e.g. 'reliability').",
+      "markdownDescription": "URL-safe slug of the pillar whose progress was recomputed (e.g. 'reliability')."
+    },
+    "progress": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Updated completion percentage for this pillar (0–100).",
+      "markdownDescription": "Updated completion percentage for this pillar (0–100)."
+    }
+  },
+  "required": [
+    "pillarSlug",
+    "progress"
+  ],
+  "additionalProperties": false
+}

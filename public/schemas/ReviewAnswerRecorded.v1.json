@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/ReviewAnswerRecorded.v1.json",
+  "title": "ReviewAnswerRecorded.v1",
+  "description": "Emitted when a user records or updates a single answer within a review. Also emitted when an answer is cleared (answer: null).",
+  "x-peaky-event": {
+    "type": "ReviewAnswerRecorded.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "questionId": {
+      "type": "string",
+      "description": "Unique identifier of the question being answered.",
+      "markdownDescription": "Unique identifier of the question being answered."
+    },
+    "answer": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The answer value, or null when the answer is cleared.",
+      "markdownDescription": "The answer value, or null when the answer is cleared."
+    },
+    "naReason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Free-text reason when the question is marked Not Applicable.",
+      "markdownDescription": "Free-text reason when the question is marked Not Applicable."
+    },
+    "itemNaReasons": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Serialised per-item N/A reasons for multi-item questions, or null.",
+      "markdownDescription": "Serialised per-item N/A reasons for multi-item questions, or null."
+    },
+    "pillarSlug": {
+      "type": "string",
+      "description": "URL-safe slug of the pillar this question belongs to.",
+      "markdownDescription": "URL-safe slug of the pillar this question belongs to."
+    },
+    "templateId": {
+      "type": "string",
+      "description": "ID of the template containing this question.",
+      "markdownDescription": "ID of the template containing this question."
+    }
+  },
+  "required": [
+    "questionId",
+    "answer"
+  ],
+  "additionalProperties": false
+}

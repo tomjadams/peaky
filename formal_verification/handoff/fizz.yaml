@@ -1,0 +1,5 @@
+liveness: "false"
+deadlock_detection: false
+options:
+  max_actions: 10
+  max_concurrent_actions: 2

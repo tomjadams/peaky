@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block scripts %}
+<script>
+// Save mermaid diagram sources before Zensical's bundle processes them.
+// The bundle replaces <pre class="mermaid"> with empty <div class="mermaid">
+// before our custom mermaid.mjs can access the source content.
+// By saving sources here (inline scripts run before the bundle),
+// mermaid.mjs can re-render diagrams with the correct theme later.
+window.__mermaidSources = [];
+document.querySelectorAll('pre.mermaid code').forEach(function(el) {
+  window.__mermaidSources.push(el.textContent);
+});
+</script>
+{{ super() }}
+{% endblock %}

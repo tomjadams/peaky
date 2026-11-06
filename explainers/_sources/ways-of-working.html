@@ -1,0 +1,670 @@
+<!-- Peaky · Ways of Working — the team's durable source of truth for how we plan,
+     build, review, and learn, and what of it other RTF products can reuse.
+     Assemble: python3 .factory/skills/explainer/assemble.py explainers/_sources/ways-of-working.html -->
+
+<p style="font:15px/1.6 -apple-system,sans-serif;max-width:640px;margin:40px auto;padding:18px 22px;border:1px solid #b45309;color:#78350f;background:#fffbeb">
+  <strong>Note:</strong> this is an <code>/explainer</code> content source, not a finished page —
+  assemble it first (see <code>.factory/skills/explainer/README.md</code>):<br>
+  <code>python3 .factory/skills/explainer/assemble.py explainers/_sources/ways-of-working.html</code>
+</p>
+
+<script type="application/json" data-slot="meta">
+{
+  "title": "Built once, reuse anywhere — Peaky Ways of Working",
+  "style": "editorial",
+  "components": ["ledger", "filetree", "dotplot", "loop", "chips", "tiles", "duo", "pyramid", "stepper"],
+  "output": "explainers/ways-of-working-explainer.html",
+  "md": true,
+  "thesis": "Peaky's ways of working \u2014 the product loop, the dev loop, CI governance, and the information architecture behind them \u2014 are largely portable: most of it is a copy away, the rest a rename or a port.",
+  "slides": [
+    {"kicker": "Hero", "title": "Built once, reuse anywhere", "point": "how Peaky plans, builds, reviews, and learns \u2014 and which parts other RTF products can reuse as-is"},
+    {"kicker": "01 \u00b7 Product & ways of working", "title": "Product & ways of working", "point": "one source of truth for direction, a fixed shape for every issue, and labels that organize themselves by machine"},
+    {"kicker": "01 \u00b7 Product & ways of working", "title": "The product loop", "point": "three stages \u2014 /discovery to /roadmap to /new-work \u2014 human + agent throughout, /new-work feeds the dev loop"},
+    {"kicker": "01 \u00b7 Product & ways of working", "title": "Issue templates \u2014 context in", "point": "eight templates cover every work type, like large open-source projects \u2014 steering agents to gather context upfront"},
+    {"kicker": "01 \u00b7 Product & ways of working", "title": "Label taxonomy \u2014 five axes", "point": "green axes are reusable today (MR automation, signal), cyan need a rename (domain, epic), red is Peaky-specific (project); domain labels are auto-applied by path-glob rules so the set never drifts"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "Dev workflow", "point": "one architecture for humans and agents, a loop from idea to retro, adversarial reviewers, and a deterministic floor that rises every cycle"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "Agent infrastructure", "point": "AGENTS.md points to other files for lazy loading; .factory/ is the rtf harness, managed by agent-marketplace \u2014 rules, skills, commands, and 14 adversarial droids"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "Contracts & docs", "point": "openspec/ captures every change as a contract; site/docs/ is the explanation layer \u2014 decisions.md, patterns, and the design system, same source for humans and agents"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "The dev loop", "point": "seven stages from /opsx:explore to /retro \u2014 /opsx:explore is human + agent, stages alternate between both/agent/human through plan/apply/refinement/merge-check, review & merge and /retro are human-only, merge-check as the gate"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "Trust but verify", "point": "balancing the speed of agents with software correctness \u2014 trust the loop to produce, verify with 14 adversarial reviewers plus an outcome verifier that checks acceptance criteria"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "What is a droid?", "point": "a droid is a plain markdown file you can run manually \u2014 no /merge-check needed to start; it's read-only (Read, Grep, Glob), reports findings graded by severity and ROI (BLOCK/MAJOR/WARN/INFO), and the main agent fixes only what you tell it to \u2014 preventing review fatigue"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "Adversarial Reviewers", "point": "14 domain reviewers plus a 15th, rtf-outcome-verifier, that checks whether the diff actually delivered the linked issue's acceptance criteria"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "Enrich project specific patterns", "point": "each droid loads .factory/review-context/ before reviewing \u2014 shared invariants (local-first, HLC, untrusted client) then domain conventions (feature-first packages, non-blocking SSE, entitlements in SQL) \u2014 so the seven pillars are applied through project-specific knowledge, not in a vacuum"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "The seven review pillars", "point": "all 14 adversarial droids share one lens: correctness, data integrity, security, resilience, performance, idiomatic design, and maintainability \u2014 inspired by CodeRabbit"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "Enforcing conventions, deterministically", "point": "one governance comment per MR \u2014 a rendered table of checks (title, epic, size, labels) with pass/fail status and detail, updated in-place \u2014 when a check fails, the merge is blocked; also reported as JUnit results in the pipeline UI"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "The deterministic floor", "point": "two local gates \u2014 pre-commit (lint + format) and pre-push (tests + typecheck) \u2014 catch issues before they leave your machine"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "The quality floor \u2014 linters", "point": "eight static concerns, one rule-set per language \u2014 correctness, security, performance, and architecture guards among them"},
+    {"kicker": "02 \u00b7 Dev workflow", "title": "The quality floor \u2014 tests prove", "point": "117 unit test files run in CI down to 2 fuzz/property files that still run only locally \u2014 a base that narrows as it climbs"},
+    {"kicker": "03 \u00b7 Onboarding", "title": "Demo onboarding", "point": "an interactive experience for everyone \u2014 new to the project, diving into new areas, or validating gaps with a quiz; gaps turn into issues; /explainer powers it as a tailored, hyper-personalized onboarding"},
+    {"kicker": "Appendix \u00b7 Portable playbook", "title": "The portable playbook", "point": "the direct answer to what other RTF products can reuse \u2014 each asset on one readiness spectrum, then how"},
+    {"kicker": "Appendix \u00b7 Portable playbook", "title": "Reuse-readiness", "point": "commands, adversarial reviewers, product loop, IA, changelog, and UI scaling sit at 88\u2013100% ready; OpenSpec workflow is Peaky-specific; CI governance is the least portable at 60%"},
+    {"kicker": "Appendix \u00b7 Portable playbook", "title": "How to reuse each one (1/2)", "point": "commands, adversarial reviewers, product loop, IA, changelog automation, and UI scaling are all reusable today"},
+    {"kicker": "Appendix \u00b7 Portable playbook", "title": "How to reuse each one (2/2)", "point": "OpenSpec workflow is custom, advanced, and doesn't support monorepos — study it for ideas; the CI toolkit is being productized as a shared GitLab component"},
+    {"kicker": "Appendix \u00b7 Label taxonomy", "title": "The labels", "point": "35 labels across 5 axes \u2014 MR automation (7, machine), signal (6, manual), domain (13, auto by path) \u2014 the reusable and adaptable axes"},
+    {"kicker": "Appendix \u00b7 Label taxonomy", "title": "Adapt & specific", "point": "epic (4 horizons, adapt to your roadmap) and project (5 labels, Peaky product names) \u2014 the axes that need personalization or are Peaky-specific"}
+  ],
+  "facts": [
+    "roadmap.md is the single source of truth; the product loop runs /discovery → /roadmap → /new-work, keeping the backlog traceable without a perfect roadmap session",
+    "eight GitLab issue templates (Feature, Bug, Epic, DX, Documentation, Infrastructure, Security, BugBash) steer agents to gather context upfront; the MR template forces agents to attach evidence for every quality gate — no box checked without command output or links",
+    "CI Governance runs five blocking checks (mr_title, mr_append_issue_refs, mr_requires_epic, mr_auto_label, size) and reports as JUnit results in GitLab",
+    "the dev loop has 7 stages: /opsx:explore, /opsx:plan, /opsx:apply, refinement, merge-check, review & merge, /retro",
+    "14 domain-specific adversarial reviewer droids plus a 15th, rtf-outcome-verifier, that checks acceptance criteria rather than code",
+    "make mr runs 9 local checks (lint, lint-docs, typecheck, audit, test, go fmt+vet, golangci-lint, test:go, test:integration) before every MR; all but audit also run in CI",
+    "the quality floor is 8 static-analysis concerns per language plus a 5-tier test pyramid: 117 unit test files and 11 integration files run in CI; 26 E2E/A11y specs are next; 2 fuzz/property files still run only locally; FizzBee formal verification sits at the apex, injected as invariants at /opsx:plan",
+    "reuse-readiness assessed 14 Jul 2026: commands, adversarial reviewers, product loop, IA, changelog automation, and UI scaling are ready today (88\u2013100%); OpenSpec workflow is Peaky-specific (40%); CI governance is the least portable (60%)"
+  ],
+  "links": [{"label": "Label taxonomy discussion #42", "href": "https://gitlab.is.adyen.com/containers/rtf/peaky/-/issues/42"}]
+}
+</script>
+
+<template data-slot="content">
+<!-- ── HERO ── -->
+<section id="top" class="hero">
+  <div class="reveal" id="heroIntro">
+    <div class="hero-kicker">Peaky · Ways of Working</div>
+    <h1 class="display">Built once,<br><em>reuse anywhere.</em></h1>
+    <p class="lede">How we plan, build, review, and learn on Peaky — and which parts of that workflow other RTF products can reuse as-is.</p>
+    <p class="gloss-hint">New to the stack? <button class="term" data-term="gloss">Dotted terms</button> open a plain-English definition. Press <b>P</b> to present.</p>
+  </div>
+  <div class="reveal reveal-delay-1 aside-col" id="heroNote">
+    <p>Built with intent, not under pressure: a <button class="term" data-term="openspec">change workflow</button>, <button class="term" data-term="droids">14 adversarial reviewers plus an rtf-outcome-verifier</button>, a governed CI pipeline, and an <button class="term" data-term="ia">information architecture</button> that serves humans and agents alike.</p>
+    <p>Most of it is portable. The question this page answers: <em>what can your product reuse today?</em></p>
+  </div>
+</section>
+
+<!-- ── 01 · PRODUCT & WAYS OF WORKING ── -->
+<section id="product">
+  <div class="reveal" id="productHead">
+    <span class="eyebrow">01 · Product &amp; ways of working</span>
+    <h2 class="sec-title">Product &amp; ways of working</h2>
+    <p class="sec-sub">One source of truth for direction, a fixed shape for every issue, and labels that organize themselves by machine.</p>
+  </div>
+
+  <div class="reveal reveal-delay-1 artifact" id="productFlow">
+    <div class="block-head"><span class="eyebrow">The product loop — customer calls to traceable backlog</span><span class="data-stamp">feeds the dev loop</span></div>
+    <p class="sec-sub" style="margin-top:0">From customer calls to GitLab — three stages, with <code>/new-work</code> closing the loop so the roadmap stays honest.</p>
+    <div id="productLoopLoop"></div>
+    <p class="muted-note"><button class="term" data-term="discovery">/discovery</button> instills product thinking without drowning anyone in questions — and <button class="term" data-term="newwork">/new-work</button> takes the cost of changing our minds into account, so we can think sprint but change direction if we need to. Everything stays traceable.</p>
+  </div>
+
+  <div class="reveal reveal-delay-1 artifact" id="issueTemplates">
+    <div id="issueTemplateTiles"></div>
+  </div>
+
+  <div class="reveal reveal-delay-1 artifact" id="labelTaxonomy">
+    <div id="labelTags"></div>
+    <p class="muted-note">Green axes work for any project. Cyan axes need a rename or adaptation. Red is Peaky-specific. Domain and size labels are auto-applied by path-glob rules in <code>ci-automation.yaml</code> — unmatched labels auto-remove, so the set never drifts. <a href="https://gitlab.is.adyen.com/containers/rtf/peaky/-/issues/42" target="_blank" style="color:var(--accent);text-decoration:none">Discussion #42 →</a></p>
+  </div>
+</section>
+
+<!-- ── 02 · DEV WORKFLOW ── -->
+<section id="dev">
+  <div class="reveal" id="devHead">
+    <span class="eyebrow">02 · Dev workflow</span>
+    <h2 class="sec-title">Dev workflow</h2>
+    <p class="sec-sub">One architecture for humans and agents, a loop from idea to retro, adversarial reviewers, and a deterministic floor that rises every cycle.</p>
+  </div>
+
+  <div class="reveal reveal-delay-1 artifact" id="iaTree1">
+    <div class="block-head"><span class="eyebrow"><button class="term" data-term="ia">Information architecture</button></span><span class="data-stamp">AGENTS.md + .factory/</span></div>
+    <div id="iaFiletree1"></div>
+  </div>
+
+  <div class="reveal reveal-delay-1 artifact" id="iaTree2">
+    <div class="block-head"><span class="eyebrow">Information architecture — contracts &amp; docs</span><span class="data-stamp">openspec/ + site/docs/</span></div>
+    <div id="iaFiletree2"></div>
+    <p class="muted-note">Same source for both readers: a fresh droid session already knows the system, and so does a newcomer who asks it. <code>site/docs/development/decisions.md</code> is the cornerstone <button class="term" data-term="decisions">decision log</button>; it sits alongside <button class="term" data-term="designmd">DESIGN.md + visual-design.md</button> under <code>site/docs/</code>. Same folders, any project.</p>
+  </div>
+
+  <div class="reveal reveal-delay-1 artifact" id="devLoop">
+    <div class="block-head"><span class="eyebrow">The dev loop — idea to shipped to learned-from</span><span class="data-stamp">the product loop above feeds this loop</span></div>
+    <p class="sec-sub" style="margin-top:0">Fast and repeatable — an issue is picked up from the backlog and moves through seven stages. Each one runs an <button class="term" data-term="opsx">/opsx</button> command or a deterministic gate; step through it.</p>
+    <div id="devLoopLoop"></div>
+    <p class="muted-note"><button class="term" data-term="fizzbee">FizzBee</button> is deliberately not one stage — we're still codifying it as invariants injected at <code>/opsx:plan</code>. The loop closes at <button class="term" data-term="retro">/retro</button>: what it improves feeds back into stage 01, so the non-deterministic surface shrinks every cycle.</p>
+  </div>
+
+  <div class="reveal reveal-delay-1" id="droidIntro">
+    <div id="droidDuo"></div>
+  </div>
+
+  <div class="reveal reveal-delay-1 artifact" id="droidWhat">
+    <div class="block-head"><span class="eyebrow">What is a droid, actually?</span><span class="data-stamp">.factory/droids/*.md</span></div>
+    <p class="sec-sub" style="margin-top:0">Four things to demystify before the roster: it's a markdown file, it's read-only, findings are graded, and it follows the same pattern as commands and skills.</p>
+    <div id="droidStepper"></div>
+  </div>
+
+  <div class="reveal reveal-delay-1 artifact" id="droidRoster">
+    <div class="block-head"><span class="eyebrow">Adversarial + outcome droid roster — 15 AI reviewers</span><span class="data-stamp">.factory/droids/ · 14 adversarial + 1 rtf-outcome-verifier</span></div>
+    <div id="droidTiles"></div>
+    <p class="muted-note">The name is the scope — each droid reviews one angle only. New domains just add a new droid. <code>rtf-outcome-verifier</code> sits adjacent to the adversarial roster — it runs by default against the change's acceptance criteria (auto-discovered from the branch issue or openspec change) and asks "did the diff actually deliver them?", which the 14 adversarial droids cannot. <button class="term" data-term="mergecheck">/merge-check</button> orchestrates the lot: path-routed by default, rtf-security-reviewer always, evidence-paired on every BLOCK/WARN finding, exit codes 0/1/2/3 — the loudest signal wins.</p>
+  </div>
+
+  <div class="reveal reveal-delay-1 artifact" id="droidContext">
+    <div class="block-head"><span class="eyebrow">Enrich project specific patterns</span><span class="data-stamp">.factory/review-context/</span></div>
+    <p class="sec-sub" style="margin-top:0">The seven pillars are the lens, but each droid loads project-specific context before reviewing. That's what makes a Go reviewer check HLC ordering, not just "concurrency."</p>
+    <div id="droidContextStepper"></div>
+  </div>
+
+  <div class="reveal reveal-delay-2 artifact" id="droidPillars">
+    <div class="block-head"><span class="eyebrow">What every reviewer looks for</span><span class="data-stamp">seven pillars, inspired by CodeRabbit</span></div>
+    <div id="droidPillarLedger"></div>
+    <p class="muted-note">Every adversarial droid applies the same lens to its own domain. A Go reviewer checks concurrency; a security reviewer checks trust boundaries \u2014 but both reason through the same pillars. The outcome droid adds the eighth question: did this change actually satisfy its acceptance criteria?</p>
+  </div>
+
+  <div class="reveal reveal-delay-2 artifact" id="ciGovern">
+    <div class="block-head"><span class="eyebrow">Enforcing conventions, deterministically</span><span class="data-stamp">ci-automation.yaml · 5 checks</span></div>
+    <div id="ciGovernReport"></div>
+    <p class="muted-note">Reported to GitLab as <button class="term" data-term="junit">JUnit</button> test results plus one governance comment — never a wall of bot comments. <span class="flag next"><i></i>Next → shared <button class="term" data-term="gitlabcomponent">GitLab component</button> other RTF products include with one line</span></p>
+  </div>
+
+  <div class="reveal reveal-delay-2 artifact" id="detFloor">
+    <div class="block-head" id="detFloorHead"><span class="eyebrow">The deterministic floor — local gates</span><span class="data-stamp">catch issues before they leave your machine</span></div>
+    <div id="detFloorTiles"></div>
+    <p class="muted-note" id="detFloorNote">Cheap, deterministic feedback first, locally. CI continues the suite — the point: agents only ever run on already-clean code.</p>
+  </div>
+
+  <div class="reveal reveal-delay-2 artifact" id="qualityFloor">
+    <div class="block-head" id="qualityFloorHead"><span class="eyebrow">The quality floor — static analysis + tests</span><span class="data-stamp">linters prevent · tests prove</span></div>
+    <div id="qualityLintTiles"></div>
+    <div id="qualityPyramid"></div>
+    <p class="muted-note" id="qualityFloorNote">Two systems, one floor: linters prevent whole classes of bugs statically — one per language, same concerns — while the pyramid proves behaviour. When a reviewer droid keeps catching something, it graduates into a linter rule and the droid shrinks.</p>
+  </div>
+</section>
+
+<!-- ── 03 · ONBOARDING ── -->
+<section id="onboarding">
+  <div class="reveal" id="onbDemo">
+    <span class="eyebrow">03 · Onboarding</span>
+    <h2 class="sec-title">Demo onboarding</h2>
+    <p class="sec-sub">An interactive experience for everyone — new to the project, a maintainer diving into new areas, or validating knowledge gaps with a quiz. Gaps turn into issues. <button class="term" data-term="explainer">/explainer</button> powers the whole thing as a tailored, hyper-personalized onboarding.</p>
+  </div>
+</section>
+
+<!-- ── 04 · THE PORTABLE PLAYBOOK ── -->
+<section id="lift">
+  <div class="reveal" id="liftHead">
+    <span class="eyebrow">Appendix · The portable playbook</span>
+    <h2 class="sec-title">The portable playbook</h2>
+    <p class="sec-sub">The direct answer to "what can other RTF products reuse?" — each asset on one readiness spectrum, then how.</p>
+  </div>
+
+  <div class="reveal reveal-delay-1 artifact" id="liftDotplot">
+    <div class="block-head"><span class="eyebrow">Reuse-readiness — where each asset sits today</span><span class="data-stamp">assessed 14 Jul 2026</span></div>
+    <div id="liftDots"></div>
+  </div>
+
+  <div class="reveal reveal-delay-2 artifact" id="liftLedgerA">
+    <div class="block-head"><span class="eyebrow">How to reuse each one</span><span class="data-stamp">the playbook, concretely</span></div>
+    <div id="liftLedgerAHost"></div>
+  </div>
+</section>
+
+<!-- own <section> (not nested in #lift) so this final slide has a scroll
+     anchor distinct from its chapter-mates above — see the Present-mode
+     note in page-js near initPresent for why that matters here. -->
+<section id="liftLedgerB">
+  <div class="reveal reveal-delay-2 artifact">
+    <div class="block-head"><span class="eyebrow">How to reuse each one, continued</span><span class="data-stamp">the playbook, concretely</span></div>
+    <div id="liftLedgerBHost"></div>
+    <p class="muted-note">Built once, reuse anywhere — a playbook, not a project. Most of it is a copy away; the rest is a rename or a port, and the CI component is on its way to you.</p>
+  </div>
+</section>
+
+<!-- ── APPENDIX · LABEL TAXONOMY DETAIL ── -->
+<section id="labelDetail">
+  <div class="reveal reveal-delay-1 artifact" id="labelDetailA">
+    <div id="labelTagsDetail"></div>
+  </div>
+  <div class="reveal reveal-delay-1 artifact" id="labelDetailB">
+    <div id="labelTagsDetail2"></div>
+  </div>
+</section>
+</template>
+
+<style data-slot="page-css">
+/* Future / not-yet — dashed left rule is the only "not real yet" grammar */
+.aside-col.future{border-left-style:dashed}
+
+/* Present mode: hide block-head and sec-sub to give loops room */
+.pr-stage #devLoop .block-head,.pr-stage #devLoop .sec-sub{display:none}
+.pr-stage #productFlow .block-head,.pr-stage #productFlow .sec-sub{display:none}
+/* Present mode: hide block-head on IA slide 2 (pure title duplication) */
+.pr-stage #iaTree2 .block-head{display:none}
+/* Present mode: hide block-head on droid roster (title + tiles suffice) */
+.pr-stage #droidRoster .block-head{display:none}
+/* Present mode: hide block-head and sec-sub on droid demystification (stepper title suffices) */
+.pr-stage #droidWhat .block-head,.pr-stage #droidWhat .sec-sub{display:none}
+/* droid stepper: normalize code-block height so steps don't jump */
+#droidStepper .code-block pre{min-height:200px}
+/* droid context stepper: same normalization */
+#droidContextStepper .code-block pre{min-height:200px}
+/* CI governance stepper: taller code blocks (8-line tables) */
+#ciGovernStepper .code-block pre{min-height:280px}
+/* syntax highlight: error/fail color for governance report */
+.y-err{color:var(--error)}
+
+/* Governance comment — reconstructed GitLab rendering */
+.gov-panel{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:44px;align-items:start;margin-top:8px}
+.gov-panel>*{min-width:0}
+.gov-prose .gov-label{font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;display:block}
+.gov-prose .gov-heading{font-size:1.15rem;font-weight:700;margin-bottom:10px;color:var(--text);line-height:1.35}
+.gov-prose .gov-body{font-size:.92rem;color:var(--text-dim);line-height:1.7}
+.gov-prose .gov-body code{font-family:var(--mono);font-size:.85em;color:var(--accent)}
+.gov-comment{border:1px solid var(--border-strong);border-radius:var(--radius);overflow:hidden;background:var(--surface);max-width:560px}
+.gov-header{display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-faint)}
+.gov-bot{color:var(--accent);font-weight:600}
+.gov-title{padding:14px 18px 6px;font-size:.95rem;font-weight:700;color:var(--text)}
+.gov-table{padding:0 18px}
+.gov-row{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:.84rem}
+.gov-row:last-child{border-bottom:none}
+.gov-check{font-family:var(--mono);color:var(--accent);font-size:.8rem}
+.gov-detail{color:var(--text-dim);font-size:.8rem;text-align:right}
+.gov-footer{padding:12px 18px;border-top:1px solid var(--border);font-size:.86rem;font-weight:600}
+.gov-footer.gov-pass{color:var(--success)}
+.gov-footer.gov-fail{color:var(--error)}
+.gov-toggle{display:flex;gap:8px;margin-top:20px}
+.gov-dot{appearance:none;border:1px solid var(--border-strong);background:var(--bg);width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:.6rem;color:var(--text-dim);cursor:pointer;transition:all .25s ease}
+.gov-dot:hover{border-color:var(--text-dim);color:var(--text)}
+.gov-dot.active{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px var(--accent-dim)}
+@media(max-width:900px){.gov-panel{grid-template-columns:1fr;gap:20px}}
+.pr-stage .gov-panel{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr)}
+.pr-stage .gov-prose .gov-label{font-size:.82rem}
+.pr-stage .gov-prose .gov-heading{font-size:1.4rem}
+.pr-stage .gov-prose .gov-body{font-size:1.12rem;line-height:1.6}
+.pr-stage .gov-comment{max-width:none}
+.pr-stage .gov-title{font-size:1.1rem}
+.pr-stage .gov-row{font-size:1rem;padding:12px 0}
+.pr-stage .gov-check{font-size:.92rem}
+.pr-stage .gov-detail{font-size:.92rem}
+.pr-stage .gov-footer{font-size:1rem;padding:16px 18px}
+.pr-stage .gov-toggle{margin-top:28px}
+/* Present mode: hide block-head and sec-sub on droid context (stepper title suffices) */
+.pr-stage #droidContext .block-head,.pr-stage #droidContext .sec-sub{display:none}
+/* Present mode: hide block-head on droid pillars (slide title suffices) */
+.pr-stage #droidPillars .block-head{display:none}
+/* Present mode: hide block-head on CI governance (stepper title suffices) */
+.pr-stage #ciGovern .block-head{display:none}
+/* Present mode: linter tiles — smaller text, more generous whitespace */
+.pr-stage #qualityLintTiles .ktile-name{font-size:1.45rem}
+/* Present mode: hide block-head on dotplot (title suffices) */
+.pr-stage #liftDotplot .block-head{display:none}
+/* Present mode: hide block-heads on ledger slides (title suffices) */
+.pr-stage #liftLedgerA .block-head{display:none}
+.pr-stage #liftLedgerB .block-head{display:none}
+
+/* droid pillar ledger: larger type + aligned subtext column */
+#droidPillarLedger .kl-row{
+  display:grid;
+  grid-template-columns:auto 400px 1fr;
+  gap:16px;
+  align-items:baseline;
+  padding:16px 4px;
+}
+#droidPillarLedger .kl-title{
+  font-size:1.2rem;
+  white-space:normal;
+  line-height:1.35;
+}
+#droidPillarLedger .kl-sub{
+  font-size:1.05rem;
+  line-height:1.5;
+}
+#droidPillarLedger .kl-num{
+  font-size:.75rem;
+  align-self:start;
+  padding-top:4px;
+}
+@media(max-width:720px){
+  #droidPillarLedger .kl-row{grid-template-columns:1fr;gap:6px}
+  #droidPillarLedger .kl-num{margin-bottom:2px}
+}
+</style>
+
+<script data-slot="page-js">
+window.GLOSSARY = {
+  gloss: {t:'Glossary', d:'Every dotted term on this page opens a short, no-prior-context definition. Click elsewhere or press Esc to close.'},
+  ia: {t:'Information architecture', d:'How knowledge is organized in the repo so both humans and agents can find it. <code>AGENTS.md</code> points to other files for lazy loading; <code>.factory/</code> is the rtf harness, managed by agent-marketplace — rules, skills, commands, and droids; <code>openspec/</code> holds contracts and requirements; <code>site/docs/</code> holds product and maintainer docs, decisions, and patterns.'},
+  openspec: {t:'OpenSpec', d:'Our change workflow: every significant change is explored, planned into specs + design + tasks, implemented, verified, then archived. The spec is the paper trail for why the code looks the way it does.'},
+  opsx: {t:'/opsx — the OpenSpec commands', d:'<code>/opsx:explore</code> is a thinking stance (never implements). <code>/opsx:plan</code> is the handoff that generates artifacts to schema. <code>/opsx:apply</code> implements. Then verify and archive.'},
+  peakyworkflow: {t:'peaky-workflow schema', d:'Our custom OpenSpec schema (in <code>openspec/schemas/</code>). Red/green/refactor TDD, no proposal.md (design.md is the reviewed artifact), and invariants injected into design + specs.'},
+  droids: {t:'Adversarial reviewers ("droids") + rtf-outcome-verifier', d:'14 specialised AI code reviewers that read a change from one angle each — SQL safety, Go concurrency, accessibility, security. <strong>Plus</strong> a 15th droid, <code>rtf-outcome-verifier</code>, that runs by default against acceptance criteria — auto-discovered from the branch issue or openspec change — and asks "did the diff actually deliver them?" The 14 adversarial droids cannot answer that: they review code, not intent.'},
+  mergecheck: {t:'/merge-check — adversarial + outcome review floor', d:'A Factory Droid skill that runs the adversarial roster + <code>rtf-outcome-verifier</code> in one pass and writes an <code>attestation</code> at <code>attestations/mr-&lt;iid&gt;.md</code>. Each reviewer declares its own routing, so the skill holds no hardcoded list — it discovers the roster, runs every <code>always</code> droid (<code>rtf-security-reviewer</code> is non-bypassable), and reasons over the diff to add any reviewer the file-globs missed. Four-tier exit: 0 clean · 1 BLOCK or outcome-gap · 2 reviewer ERROR / format-drift · 3 reviewer timeout.'},
+  attestation: {t:'attestation — what /merge-check writes', d:'A single Markdown file per MR at <code>attestations/mr-&lt;iid&gt;.md</code> on the MR source branch. Frontmatter stamps <code>commit_sha</code> + <code>verdict</code>; the CI gate cross-checks the SHA against the reviewed code commit. Squash-merge discards the branch and the attestation dies with it.'},
+  coderabbit: {t:'CodeRabbit', d:'A commercial AI code-review service that comments on every merge request in CI. It reviews holistically; our droids each go deep on a single domain.'},
+  fizzbee: {t:'FizzBee — formal verification', d:'A formal-verification tool. We describe a protocol (like sync) as a small mathematical model and FizzBee exhaustively explores every interleaving to prove invariants hold — including orderings tests would essentially never hit.'},
+  mr: {t:'MR — Merge Request', d:'GitLab\u2019s name for a pull request: a proposed change, reviewed before it lands on main.'},
+  epic: {t:'Epic', d:'GitLab\u2019s grouping of related issues into one larger workstream. Each roadmap item maps to an epic with linked issues.'},
+  junit: {t:'JUnit integration', d:'A standard XML report format GitLab understands. Emitting the CI automation checks as JUnit tests makes them first-class, blocking pipeline results with per-check pass/fail and timing.'},
+  gitlabcomponent: {t:'GitLab component', d:'A reusable, versioned CI/CD building block other RTF products include with one line. We are packaging the governance toolkit as one so every RTF product gets it for free.'},
+  changelog: {t:'changelog.md', d:'Auto-generated on a schedule from squash-merge commits. Because MR titles carry issue refs and a conventional type, the changelog comes out clean and linked — no hand-editing.'},
+  designmd: {t:'DESIGN.md + visual-design.md', d:'<code>DESIGN.md</code> encodes brand tokens and component specs as structured data an agent can load. <code>visual-design.md</code> adds the patterns and anti-patterns that keep agent-generated UI consistent.'},
+  decisions: {t:'Decision log', d:'<code>site/docs/development/decisions.md</code> — why things are built the way they are, so the reasoning is durable instead of tribal knowledge.'},
+  oxlint: {t:'oxlint', d:'A Rust-based JS/TS linter, dramatically faster than ESLint. It runs first; ESLint follows for the rules oxlint doesn\u2019t cover yet.'},
+  golangci: {t:'golangci-lint', d:'A runner that executes many Go linters in one pass. Ours runs 20 — from resource-leak detection to architecture rules like "domain packages may not import the web framework".'},
+  explainer: {t:'/explainer', d:'A slash command that generates a standalone interactive HTML explainer (like this page) for any topic, in a consistent house style. Used across the team.'},
+  retro: {t:'/retro', d:'A slash command run after meaningful changes. Patterns become skills; recurring droid catches become linter rules. The non-deterministic surface shrinks every cycle.'},
+  discovery: {t:'/discovery', d:'A thinking stance for the discovery phase — role-agnostic, embeds PRD discipline as a spine, not a questionnaire. Educates, extracts, translates fuzzy language into concrete notes with sequencing and ROI reasoning. Never writes a file — hands off to <code>/roadmap</code> or <code>/new-work</code>.'},
+  roadmap: {t:'/roadmap', d:'Takes free-form ideas or structured discovery notes and places an enriched section in <code>roadmap.md</code> — Customer, Problem, Outcome, Open questions, Sequencing. Syncs to GitLab as epics and issues. Interviews the team on phase placement.'},
+  newwork: {t:'/new-work', d:'A command for mid-cycle work discovery — takes ideas, agent context, and creates GitLab issue(s) associated with the respective epic (or parking lot if none found). Makes everything traceable without a perfect roadmap session.'}
+};
+
+/* ── The product loop — customer calls to traceable backlog ── */
+var productLoop = renderLoop('#productLoopLoop', {
+  legend:[{kind:'human',label:'human'},{kind:'agent',label:'agent'},{kind:'both',label:'human + agent'}],
+  return:{label:'feeds the dev loop — epics keep it traceable'},
+  stages:[
+  {num:'01', kind:'both', label:'/discovery', tag:'human + agent', eyebrow:'Stage 01 · human + agent', title:'/discovery', body:'A thinking stance — role-agnostic, embeds PRD discipline as a spine, not a questionnaire. Educates by reframing questions, extracts what\'s there, translates fuzzy language into concrete notes with sequencing and ROI reasoning. Never writes a file — hands off to <code>/roadmap</code> or <code>/new-work</code>.'},
+  {num:'02', kind:'both', label:'/roadmap', tag:'human + agent', eyebrow:'Stage 02 · human + agent', title:'/roadmap', body:'Takes discovery notes or free-form ideas, places an enriched section in <code>roadmap.md</code> — Customer, Problem, Outcome, Open questions, Sequencing. Syncs to GitLab as epics and issues. Interviews us on phase placement.'},
+  {num:'03', kind:'both', label:'/new-work', tag:'human + agent', eyebrow:'Stage 03 · human + agent', title:'/new-work', body:'Mid-cycle discovery — new ideas, tech debt, refactors. Creates GitLab issues linked to the right epic or parking lot. Also receives <code>/discovery</code> hand-offs not ready for the roadmap.'}
+]});
+
+/* ── CI governance — rendered comment on every MR ── */
+var ciGovernStates = [
+  {
+    label: 'Step 01 · clean MR',
+    heading: 'One comment, every MR',
+    body: 'A single governance comment is posted (or updated in-place) on every MR. Summary table with pass/fail per check. Also reported as <button class="term" data-term="junit">JUnit</button> results in the pipeline UI.',
+    rows: [
+      {check:'mr_title', pass:true, detail:'conv. commit'},
+      {check:'mr_append_issue_refs', pass:true, detail:'2 issue refs'},
+      {check:'mr_requires_epic', pass:true, detail:'epic: now'},
+      {check:'mr_auto_label', pass:true, detail:'6 labels applied'},
+      {check:'size', pass:true, detail:'240 lines'}
+    ],
+    footer: '5/5 checks passed',
+    footerTone: 'pass'
+  },
+  {
+    label: 'Step 02 · check fails',
+    heading: 'A check fails — merge blocked',
+    body: 'When a check fails, the footer changes and the merge is blocked. The detail is right there in the comment — no hunting through pipeline logs.',
+    rows: [
+      {check:'mr_title', pass:true, detail:'conv. commit'},
+      {check:'mr_append_issue_refs', pass:true, detail:'2 issue refs'},
+      {check:'mr_requires_epic', pass:true, detail:'epic: now'},
+      {check:'mr_auto_label', pass:true, detail:'6 labels applied'},
+      {check:'size', pass:false, detail:'850 lines (max 500)'}
+    ],
+    footer: '1/5 checks failed — merge blocked',
+    footerTone: 'fail'
+  }
+];
+
+function renderGovComment(i) {
+  var s = ciGovernStates[i];
+  var host = document.getElementById('ciGovernReport');
+  var flagHTML = function(r) {
+    return r.pass
+      ? '<span class="flag done"><i></i>Pass</span>'
+      : '<span class="flag gap"><i></i>Fail</span>';
+  };
+  var rows = s.rows.map(function(r) {
+    return '<div class="gov-row">'
+      + '<span class="gov-check">' + r.check + '</span>'
+      + flagHTML(r)
+      + '<span class="gov-detail">' + r.detail + '</span>'
+      + '</div>';
+  }).join('');
+  host.innerHTML =
+    '<div class="gov-panel">'
+    + '<div class="gov-prose">'
+    + '<span class="gov-label">' + s.label + '</span>'
+    + '<h4 class="gov-heading">' + s.heading + '</h4>'
+    + '<p class="gov-body">' + s.body + '</p>'
+    + '</div>'
+    + '<div class="gov-comment">'
+    + '<div class="gov-header"><span class="gov-bot">CI Automation</span><span class="gov-stamp">governance comment · updated in-place</span></div>'
+    + '<div class="gov-title">CI Governance Report</div>'
+    + '<div class="gov-table">' + rows + '</div>'
+    + '<div class="gov-footer gov-' + s.footerTone + '">' + s.footer + '</div>'
+    + '</div>'
+    + '</div>'
+    + '<div class="gov-toggle">'
+    + '<button class="gov-dot' + (i === 0 ? ' active' : '') + '" data-state="0">01</button>'
+    + '<button class="gov-dot' + (i === 1 ? ' active' : '') + '" data-state="1">02</button>'
+    + '</div>';
+  host.querySelectorAll('.gov-dot').forEach(function(d) {
+    d.addEventListener('click', function() { ciGovernGo(parseInt(this.dataset.state)); });
+  });
+}
+
+function ciGovernGo(i) {
+  renderGovComment(i);
+}
+renderGovComment(0);
+var ciGovernSteps = {count: 2, go: ciGovernGo};
+
+/* ── Information architecture — agent infrastructure ── */
+renderFiletree('#iaFiletree1', {legend:false, icons:true, map:true, panes:[{tree:[
+  {name:'AGENTS.md', note:'points to other files for lazy loading'},
+  {name:'.factory/', rationale:'the rtf harness · managed by agent-marketplace', columns:true, children:[
+    {name:'rules/', note:'mandatory conventions'},
+    {name:'skills/', note:'hard-won patterns'},
+    {name:'commands/', note:'slash workflows'},
+    {name:'droids/', note:'14 adversarial reviewers + 1 rtf-outcome-verifier'}
+  ]}
+]}]});
+
+/* ── Information architecture — contracts & docs ── */
+renderFiletree('#iaFiletree2', {legend:false, icons:true, map:true, panes:[{tree:[
+  {name:'openspec/', rationale:'the contract — captured as change', columns:true, children:[
+    {name:'specs/', note:'contracts &amp; requirements'},
+    {name:'changes/', note:'active proposals'},
+    {name:'schemas/', note:'<code>peaky-workflow</code>'}
+  ]},
+  {name:'site/docs/', rationale:'the explanation — humans &amp; agents', columns:true, children:[
+    {name:'user-guide/', note:'product docs · product changelog'},
+    {name:'development/', note:'maintainer docs · development changelog · patterns'},
+    {name:'decisions.md', note:'cornerstone decision log'},
+    {name:'DESIGN.md + visual-design.md', note:'<button class="term" data-term="designmd">design system</button>'}
+  ]}
+]}]});
+
+/* ── Issue templates — floating tile grid ── */
+renderTiles('#issueTemplateTiles', {groups:[
+  {tone:'accent', items:['Feature','Epic','Documentation']},
+  {tone:'violet', items:['DX','Infrastructure','BugBash']},
+  {tone:'error', items:['Bug','Security']}
+]});
+
+/* ── Label taxonomy — five axes, grouped by reusability ── */
+renderTiles('#labelTags', {columns:3, groups:[
+  {tone:'success', items:[
+    {name:'MR automation', sub:'7 labels · machine · conventional commits'},
+    {name:'Signal', sub:'6 labels · manual · triage & release state'}
+  ]},
+  {tone:'accent', items:[
+    {name:'Domain', sub:'13 labels · auto by path · rename for your stack'},
+    {name:'Epic', sub:'4 horizons · adapt phases to your roadmap'}
+  ]},
+  {tone:'error', items:[
+    {name:'Project', sub:'5 labels · Peaky product names'}
+  ]}
+]});
+
+/* ── Label taxonomy — actual labels, ordered by reusability ── */
+renderChips('#labelTagsDetail', {groups:[
+  {label:'MR automation', sub:'7 · machine', tone:'success',
+   items:['bug','feature','documentation','chore','dependencies','governance','breaking-change']},
+  {label:'Signal', sub:'6 · manual', tone:'success',
+   items:['triage','pending-release','do-not-merge','need-more-information','help-wanted','good-first-issue']},
+  {label:'Domain', sub:'13 · auto by path', tone:'accent',
+   items:['sync-engine','authn','authz','backend','frontend','ui','migrations','infrastructure','security','spec','tooling','ci-cd','agents']}
+]});
+renderChips('#labelTagsDetail2', {groups:[
+  {label:'Epic', sub:'4 · adapt', tone:'accent',
+   items:['now','beta','ga','post-ga']},
+  {label:'Project', sub:'5 · Peaky-specific', tone:'error',
+   items:['peaky','architect','architect-harness','disaster-simulation']}
+]});
+
+/* ── Trust but verify — two facing cards ── */
+renderDuo('#droidDuo', {
+  left: {label:'Trust', claim:'Agents produce code at speed.', sub:'The dev loop runs at agent speed — we trust it to ship.', tone:'neutral'},
+  right: {label:'Verify', claim:'Adversarial review proves correctness.', sub:'15 AI reviewers, each from one angle, plus outcome verification against acceptance criteria.', tone:'accent'}
+});
+
+/* ── What is a droid? — four-step demystification ── */
+var droidStepper = renderStepper('#droidStepper', {
+  steps: [
+    {
+      label: 'Step 01 · the file',
+      title: 'A droid is a markdown file',
+      body: 'A markdown file in <code>.factory/droids/</code>. No <code>/merge-check</code> needed — write it, hand it a diff, and it reviews.',
+      code: {filename:'.factory/droids/rtf-go-reviewer.md', html:'<span class="y-com">---</span>\n<span class="y-key">name</span>: rtf-go-reviewer\n<span class="y-key">model</span>: kimi-k2.7-code\n<span class="y-key">tools</span>: [Read, Grep, Glob]\n<span class="y-com">---</span>\nReview changed Go code\u2026'}
+    },
+    {
+      label: 'Step 02 · the contract',
+      title: 'Read-only — it reports, never edits',
+      body: 'Tools are <code>Read</code>, <code>Grep</code>, <code>Glob</code> — no <code>Edit</code>, no <code>Write</code>. It reports findings back; never touches the code.',
+      code: {filename:'rtf-security-reviewer.md', html:'<span class="y-com"># Security Reviewer</span>\n\nThink like an attacker.\nFind paths to unauthorized\naccess or disclosure.\n\n<span class="y-key">Stay read-only.</span>'}
+    },
+    {
+      label: 'Step 03 · the findings',
+      title: 'Graded, not just dumped',
+      body: 'Findings carry severity (<code>BLOCK</code>/<code>MAJOR</code>/<code>WARN</code>/<code>INFO</code>) and ROI. <code>BLOCK</code> is the only merge gate. Fix <code>BLOCK</code>, skip <code>INFO</code> — prevents review fatigue.',
+      code: {filename:'reviewer output', html:'<span class="y-key">Summary: BLOCK</span> \u2014 2 findings\n\n<span class="y-str">BLOCK: goroutine leak</span>\n  ROI high \u2192 fix\n<span class="y-com">INFO: rename receiver</span>\n  ROI low \u2192 skip'}
+    },
+    {
+      label: 'Step 04 · the pattern',
+      title: 'Same shape, three folders',
+      body: 'Commands, skills, droids — all markdown with frontmatter. Write a file; the harness finds it.',
+      code: {filename:'.factory/commands/retro.md', html:'<span class="y-com">---</span>\n<span class="y-key">description</span>: Reflect on recent work\n<span class="y-key">argument-hint</span>: \'[change-name]\'\n<span class="y-com">---</span>\n<span class="y-com"># /retro</span>\nReflect and continuously improve SDLC, rank by ROI.'}
+    }
+  ]
+});
+
+/* ── Adversarial + outcome droid roster ── */
+renderTiles('#droidTiles', {columns:5, groups:[
+  {tone:'accent', items:['go','ts','vue','python','postgres','sqlite','security','docs-dev','docs-product']},
+  {tone:'violet', items:['ts-test','go-test','python-test','ui','ux']},
+  {tone:'success', items:['rtf-outcome-verifier']}
+]});
+
+/* ── Enrich project specific patterns — context stepper ── */
+var droidContextStepper = renderStepper('#droidContextStepper', {
+  steps: [
+    {
+      label: 'Step 01 · context loading',
+      title: 'Each droid loads your project',
+      body: 'Every reviewer reads <code>.factory/review-context/</code> before reviewing — shared invariants first, then domain conventions.',
+      code: {filename:'rtf-go-reviewer.md · context', html:'<span class="y-com">## Context</span>\n\nBefore reviewing, read:\n1. <span class="y-key">common.md</span>\n2. <span class="y-key">go.md</span>\n\nMissing files are non-fatal.'}
+    },
+    {
+      label: 'Step 02 · shared invariants',
+      title: 'Project invariants shape every pillar',
+      body: 'Common context tells every droid: local-first, HLC conflict resolution, untrusted client identity, SSE carries cursors not data.',
+      code: {filename:'.factory/review-context/common.md', html:'<span class="y-com"># Peaky Review Context</span>\n\n- Local-first: SQLite is truth\n- HLC conflict resolution\n- Client identity untrusted\n- SSE: cursors, never data'}
+    },
+    {
+      label: 'Step 03 · domain specifics',
+      title: 'Domain context adds the specifics',
+      body: 'Go context adds: feature-first packages, non-blocking SSE drop, entitlements in SQL. Now "Data Integrity" means HLC ordering — not just "check your locks."',
+      code: {filename:'.factory/review-context/go.md', html:'<span class="y-com"># Go Review Context</span>\n\n- Feature-first packages\n- SSE: non-blocking drop\n- Entitlements enforced in SQL\n- db/ is generated (sqlc)'}
+    }
+  ]
+});
+
+/* ── Seven review pillars shared by every adversarial droid ── */
+renderLedger('#droidPillarLedger', {numbered:true, groups:[{rows:[
+  {title:'Correctness and Intent', sub:'Requested behavior, contracts, boundaries, and observable outcomes.'},
+  {title:'Data Integrity and Concurrency', sub:'Atomicity, ordering, idempotency, races, and state consistency.'},
+  {title:'Security and Privacy', sub:'Trust boundaries, authorization, injection, secrets, and data exposure.'},
+  {title:'Resilience and Recovery', sub:'Failures, retries, cleanup, degradation, and restoration.'},
+  {title:'Performance and Resource Efficiency', sub:'Latency, scale, bounded work, memory, I/O, and contention.'},
+  {title:'Idiomatic Design and Standards', sub:'Language, framework, and database practices, refined by project context.'},
+  {title:'Maintainability and Change Safety', sub:'Coupling, compatibility, tests, rollout safety, and future evolution.'}
+]}]});
+
+/* ── The dev loop — seven stages on a closed circuit ── */
+var devLoop = renderLoop('#devLoopLoop', {
+  legend:[{kind:'human',label:'human'},{kind:'agent',label:'agent'},{kind:'both',label:'human + agent'}],
+  return:{label:'/retro continuously improves our workflow'},
+  stages:[
+  {num:'01', kind:'both', label:'/opsx:explore', tag:'human + agent · SOTA', eyebrow:'Stage 01 · human + agent · SOTA model', title:'/opsx:explore', body:'A thinking stance — never implements. Human and SOTA agent brainstorm together, challenge assumptions, sketch in ASCII.'},
+  {num:'02', kind:'both', label:'/opsx:plan', tag:'human + agent · SOTA', eyebrow:'Stage 02 · human + agent · SOTA model', title:'/opsx:plan', body:'The agent drafts <code>specs</code>, <code>design.md</code>, and <code>tasks.md</code> to the <button class="term" data-term="peakyworkflow">peaky-workflow</button> schema, injecting invariants. A human gates before <code>/opsx:apply</code> — agent drafts, human gates.'},
+  {num:'03', kind:'agent', label:'/opsx:apply', tag:'agent', eyebrow:'Stage 03 · agent', title:'/opsx:apply', body:'Implements against the plan with TDD. Lands ~90–95% of the work — never 100%, which is why refinement exists.'},
+  {num:'04', kind:'both', label:'refinement', tag:'human + agent', eyebrow:'Stage 04 · human + agent', title:'refinement', body:'The 5–10% gap. Human-led, agent-assisted — taste and product judgement enter here, then it loops back through the gate.'},
+  {num:'05', kind:'agent', label:'merge-check', tag:'agent · gate', eyebrow:'Stage 05 · agent · gate', title:'merge-check', body:'AI reviewers, <button class="term" data-term="coderabbit">CodeRabbit</button>, lint, typecheck, audit, unit, integration, and CI gates — all confirming mergeability. Stamped to an <button class="term" data-term="attestation">attestation</button>.'},
+  {num:'06', kind:'human', label:'review & merge', tag:'human', eyebrow:'Stage 06 · human', title:'review & merge', body:'Human spot checks on the attestation, then squash-merge into a clean, auto-generated <button class="term" data-term="changelog">changelog</button>.'},
+  {num:'07', kind:'human', label:'/retro', tag:'human', eyebrow:'Stage 07 · human', title:'/retro', body:'A separate beat from merging. Patterns become skills, recurring droid catches become linter rules — sharpening the harness, not gold-plating the product.'}
+]});
+
+/* ── The deterministic floor — four automated gates ── */
+renderTiles('#detFloorTiles', {columns:2, groups:[
+  {tone:'accent', items:[{name:'Pre-commit', sub:'lint + format · every commit'}]},
+  {tone:'violet', items:[{name:'Pre-push', sub:'tests + typecheck · every push'}]}
+]});
+
+/* ── The quality floor — linters prevent (tiles) ── */
+renderTiles('#qualityLintTiles', {columns:4, groups:[
+  {tone:'accent', items:['Correctness', 'Suspicious patterns', 'Performance &amp; memory', 'Security']},
+  {tone:'violet', items:['Resource &amp; context safety', 'Complexity budgets', 'Architecture guards', 'Idiom &amp; error discipline']}
+]});
+var qfPyramid = renderPyramid('#qualityPyramid', {
+  ariaLabel:'Test pyramid: a broad unit base narrowing through integration, E2E, fuzz, to formal verification at the apex',
+  layers:[
+    {name:'Formal verification', count:'FizzBee · protocol invariants', flag:{tone:'warning', label:'LOCAL'}},
+    {name:'Fuzz · Property', count:'2 Go files', flag:{tone:'warning', label:'LOCAL'}},
+    {name:'E2E + A11y', count:'26 specs', flag:{tone:'accent', label:'CI NEXT'}},
+    {name:'Integration', count:'11 files · testcontainers', flag:{tone:'success', label:'IN CI'}},
+    {name:'Unit tests', count:'117 files · TS + Go', flag:{tone:'success', label:'IN CI'}}
+  ]
+});
+
+/* ── The portable playbook — reuse-readiness ── */
+var liftDots = renderDotplot('#liftDots', {
+  ends: ['Peaky-specific', 'ready to reuse'],
+  rows: [
+    {label:'Commands (<code>/retro</code>, <code>/explainer</code>, <code>/onboarding</code>, <code>/roadmap</code>)', value:100, kind:'full'},
+    {label:'Adversarial reviewers (general purpose, per-project context)', value:100, kind:'full'},
+    {label:'Product loop (<code>/discovery</code> → <code>/roadmap</code> → <code>/new-work</code>)', value:95, kind:'full'},
+    {label:'Information architecture (<code>openspec/</code> + <code>site/docs/</code>)', value:95, kind:'full'},
+    {label:'Changelog automation (issue-linked, conventional, scheduled)', value:90, kind:'full'},
+    {label:'UI scaling (<code>DESIGN.md</code> + <code>visual-design.md</code>)', value:88, kind:'full'},
+    {label:'OpenSpec custom workflow (<code>peaky-workflow</code>)', value:40, kind:'low'},
+    {label:'Label taxonomy + issue/MR templates (customize for your project)', value:81, kind:'high'},
+    {label:'CI automation toolkit (governance)', value:60, kind:'mid'}
+  ]
+});
+renderLedger('#liftLedgerAHost', {groups:[{rows:[
+  {title:'Commands (<code>/retro</code>, <code>/explainer</code>, <code>/onboarding</code>, <code>/roadmap</code>)', sub:'All general purpose, reusable via the agent-marketplace registry.', flag:{kind:'done', label:'Reuse today'}},
+  {title:'Adversarial reviewers', sub:'<code>rtf-</code> prefixed, per-project context via <code>.factory/review-context/</code>, file-glob triggers for routing.', flag:{kind:'done', label:'Reuse today'}},
+  {title:'Product loop (<code>/discovery</code> → <code>/roadmap</code> → <code>/new-work</code>)', sub:'<code>/discovery</code> embeds product thinking; <code>/roadmap</code> syncs to GitLab; <code>/new-work</code> keeps it traceable.', flag:{kind:'done', label:'Reuse today'}},
+  {title:'Information architecture', sub:'<code>openspec/</code> for contracts, <code>site/docs/</code> for docs — including <code>decisions.md</code>. <code>AGENTS.md</code> points to other files for lazy loading.', flag:{kind:'done', label:'Reuse today'}},
+  {title:'Changelog automation', sub:'MR-linked issues + squash → scheduled, standardized <code>changelog.md</code>.', flag:{kind:'done', label:'Reuse today'}},
+  {title:'UI scaling', sub:'<code>DESIGN.md</code> + <code>visual-design.md</code> teach agents consistent UI. Rebrand the tokens, keep the method.', flag:{kind:'done', label:'Reuse today'}}
+]}]});
+renderLedger('#liftLedgerBHost', {groups:[{rows:[
+  {title:'OpenSpec workflow', sub:'Custom and advanced — no monorepo support. Study it for ideas, but expect to build your own.', flag:{kind:'gap', label:'Peaky-specific'}},
+  {title:'CI automation toolkit', sub:'Governance checks (size, title, linked-issue, epic, auto-label). Being packaged as a shared GitLab component.', flag:{kind:'progress', label:'Productizing'}}
+]}]});
+
+initPresent([
+  {pick:['#heroIntro','#heroNote']},
+  {kicker:'01 · Product & ways of working', pick:['#productHead']},
+  {kicker:'01 · Product & ways of working', title:'The product loop', pick:['#productFlow'], minScale:0.85, steps:{count:productLoop.count, go:productLoop.go}},
+  {kicker:'01 · Product & ways of working', title:'Issue templates — context in', pick:['#issueTemplates']},
+  {kicker:'01 · Product & ways of working', title:'Label taxonomy — five axes', pick:['#labelTags']},
+  {kicker:'02 · Dev workflow', pick:['#devHead']},
+  {kicker:'02 · Dev workflow', title:'Agent infrastructure', pick:['#iaTree1'], steps:fragSteps('#iaFiletree1 .kt-pane > div')},
+  {kicker:'02 · Dev workflow', title:'Contracts & docs', pick:['#iaTree2'], steps:fragSteps('#iaFiletree2 .kt-pane > div')},
+  {kicker:'02 · Dev workflow', title:'The dev loop', pick:['#devLoop'], minScale:0.85, steps:{count:devLoop.count, go:devLoop.go}},
+  {kicker:'02 · Dev workflow', title:'Trust but verify', pick:['#droidIntro']},
+  {kicker:'02 · Dev workflow', title:'What is a droid?', pick:['#droidWhat'], minScale:0.85, steps:{count:droidStepper.count, go:droidStepper.go}},
+  {kicker:'02 · Dev workflow', title:'Adversarial Reviewers', pick:['#droidRoster']},
+  {kicker:'02 · Dev workflow', title:'Enrich project specific patterns', pick:['#droidContext'], minScale:0.85, steps:{count:droidContextStepper.count, go:droidContextStepper.go}},
+  {kicker:'02 · Dev workflow', title:'The seven review pillars', pick:['#droidPillars'], steps:fragSteps('#droidPillarLedger .kl-row')},
+  {kicker:'02 · Dev workflow', title:'Enforcing conventions, deterministically', pick:['#ciGovern'], minScale:0.85, steps:ciGovernSteps},
+  {kicker:'02 · Dev workflow', title:'The deterministic floor', pick:['#detFloorHead','#detFloorTiles']},
+  {kicker:'02 · Dev workflow', title:'The quality floor — linters', pick:['#qualityFloorHead','#qualityLintTiles']},
+  {kicker:'02 · Dev workflow', title:'The quality floor — tests prove', pick:['#qualityPyramid'], steps:{count:qfPyramid.count, go:qfPyramid.go}},
+  {kicker:'03 · Onboarding', pick:['#onbDemo']},
+  {kicker:'Appendix · Portable playbook', pick:['#liftHead']},
+  {kicker:'Appendix · Portable playbook', title:'Reuse-readiness', pick:['#liftDotplot'], steps:{count:2, go:function(i){if(i>0)liftDots.place();}}},
+  {kicker:'Appendix · Portable playbook', title:'How to reuse each one (1/2)', pick:['#liftLedgerA'], steps:fragSteps('#liftLedgerAHost .kl-row')},
+  {kicker:'Appendix · Portable playbook', title:'How to reuse each one (2/2)', pick:['#liftLedgerB'], steps:fragSteps('#liftLedgerBHost .kl-row')},
+  {kicker:'Appendix · Label taxonomy', title:'The labels', pick:['#labelDetailA'], steps:fragSteps('#labelTagsDetail .kchips-block')},
+  {kicker:'Appendix · Label taxonomy', title:'Adapt & specific', pick:['#labelDetailB'], steps:fragSteps('#labelTagsDetail2 .kchips-block')}
+]);
+</script>

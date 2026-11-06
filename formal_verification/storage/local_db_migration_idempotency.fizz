@@ -1,0 +1,96 @@
+# WHY THIS SPEC EXISTS
+#
+# Peaky's browser migration runner (app/local-db/migrations.ts) applies a
+# shared set of SQL files to the browser-local SQLite database on every cold
+# start. Three startup paths exist, and each has a different risk profile:
+#
+#   Fresh install    — no tables yet; applies all migrations in one bundle
+#   Incremental      — some migrations already applied; applies only the delta
+#   Wipe and restart — user triggered "Clear local data"; fresh install again
+#
+# The worst failure modes are:
+#   - applying a migration twice (double-insert breaks primary keys)
+#   - marking the run "complete" before all migrations are applied
+#   - applied count exceeding total (impossible by construction, but let's prove it)
+#
+# WHAT WE MODEL
+#
+# A simplified migration runner with:
+#   total    — number of migrations on disk (read-only, fixed at startup)
+#   applied  — number of migrations recorded in __drizzle_migrations
+#   status   — "pending" | "running" | "complete" | "failed"
+#
+# Actions mirror the real runner's paths:
+#   Start      — begin a run on cold start
+#   ApplyNext  — apply the next pending migration (increments applied)
+#   Complete   — transition to "complete" when applied == total
+#   Fail       — any migration can throw (runner stops, status = "failed")
+#   Reload     — a new cold start (tab reload) re-runs the runner; `applied` is
+#                durable in __drizzle_migrations, so the delta path is taken and
+#                nothing is applied twice. This is the idempotency check.
+#   ClearLocalData — the recovery overlay wipes OPFS: applied resets to 0 and a
+#                fresh install runs again.
+#
+# Reload and ClearLocalData also keep every state non-terminal, so FizzBee's
+# deadlock detection stays on: a runner that parks forever would be a real bug.
+#
+# MODELS (paths checked by tests/guards/spec-drift.test.ts)
+#
+#   app/local-db/migrations.ts    — the runner and its status transitions
+#   shared/db/migrations/index.ts — the migration registry TOTAL abstracts
+#
+# WHAT WE PROVE
+#
+#   AppliedNeverExceedsTotal — applied <= total at all times (no double-apply)
+#   CompleteOnlyWhenFull     — "complete" is only reachable when applied == total
+#   StatusIsValid            — status is always one of the four valid values
+
+TOTAL = 3   # representative: 3 migrations on disk
+
+action Init:
+  applied = 0
+  status = "pending"
+
+# Start the migration run.
+atomic action Start:
+  require status == "pending"
+  status = "running"
+
+# Apply one migration — guarded so applied never overtakes TOTAL.
+atomic action ApplyNext:
+  require status == "running"
+  require applied < TOTAL
+  applied = applied + 1
+
+# Mark the run as complete — only valid when everything is applied.
+atomic action Complete:
+  require status == "running"
+  require applied == TOTAL
+  status = "complete"
+
+# Any migration can throw; the runner parks at "failed".
+atomic action Fail:
+  require status == "running"
+  status = "failed"
+
+# Cold start after a completed or failed run: the applied count survives in
+# __drizzle_migrations, so only the delta is applied on the next run.
+atomic action Reload:
+  require status == "complete" or status == "failed"
+  status = "pending"
+
+# "Clear local data and reload" — OPFS files are deleted, so the next run is a
+# fresh install with nothing applied.
+atomic action ClearLocalData:
+  applied = 0
+  status = "pending"
+
+
+always assertion AppliedNeverExceedsTotal:
+  return applied <= TOTAL
+
+always assertion CompleteOnlyWhenFull:
+  return status != "complete" or applied == TOTAL
+
+always assertion StatusIsValid:
+  return status in ["pending", "running", "complete", "failed"]

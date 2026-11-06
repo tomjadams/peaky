@@ -1,0 +1,13 @@
+minimumReleaseAge: 30240
+
+minimumReleaseAgeExclude:
+  - "@adyen/*"
+
+onlyBuiltDependencies:
+  - "@parcel/watcher"
+  - better-sqlite3
+  - esbuild
+  - unrs-resolver
+  - vue-demi
+
+# trustPolicy: no-downgrade

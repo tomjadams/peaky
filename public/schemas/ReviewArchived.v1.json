@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/ReviewArchived.v1.json",
+  "title": "ReviewArchived.v1",
+  "description": "Emitted when a review is archived and removed from active work.",
+  "x-peaky-event": {
+    "type": "ReviewArchived.v1",
+    "sources": [
+      "peaky.client"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Display name of the review at the time it was archived.",
+      "markdownDescription": "Display name of the review at the time it was archived."
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "additionalProperties": false
+}

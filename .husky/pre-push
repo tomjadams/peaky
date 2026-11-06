@@ -1,0 +1,4 @@
+# Pre-push intentionally left empty.
+# Slow checks (typecheck, full test suite, Go tests) run as part of `make mr`.
+# Keeping this hook empty avoids blocking fast iteration on a branch.
+# CI enforces the full quality gate on every MR.

@@ -1,0 +1,17 @@
+diff --git a/dist/compiler-sfc.cjs.js b/dist/compiler-sfc.cjs.js
+index d5b3fb1daf1d54be79b22416e050b2df63dd730c..eace9c3904d0fd210ac92cf6248fad2e19d23e3c 100644
+--- a/dist/compiler-sfc.cjs.js
++++ b/dist/compiler-sfc.cjs.js
+@@ -16,9 +16,9 @@ var url = require('url');
+ var CompilerSSR = require('@vue/compiler-ssr');
+ var require$$2 = require('util');
+ var require$$0 = require('fs');
+-var require$$0$1 = require('postcss');
+-var estreeWalker = require('estree-walker');
+-var MagicString = require('magic-string');
++var require$$0$1 = require('postcss'); require$$0$1 = require$$0$1.default || require$$0$1;
++var estreeWalker = require('estree-walker'); estreeWalker = estreeWalker.default || estreeWalker;
++var MagicString = require('magic-string'); MagicString = MagicString.default || MagicString;
+ var parser$2 = require('@babel/parser');
+ var process$1 = require('process');
+ 

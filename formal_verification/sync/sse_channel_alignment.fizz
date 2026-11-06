@@ -1,0 +1,324 @@
+# WHY THIS SPEC EXISTS
+#
+# The SSE fan-out is the "doorbell" that tells a connected browser to pull
+# immediately instead of waiting for the 30s poll. PostgreSQL LISTEN/NOTIFY is
+# exact-match only (no wildcard patterns), so if the channel a browser
+# subscribes to (LISTEN, derived from entitlements) and the channel the backend
+# notifies (NOTIFY, derived from the changed entity) ever diverge, the doorbell
+# silently never rings and sync degrades to polling.
+#
+# This model formalises the family catalog channel contract agreed in
+# formal_verification/sync/sse_gap_register.md and proves the channel-derivation
+# invariants the implementation must uphold across all four layers
+# (subscription, notification, generation, client parse).
+#
+# WHAT WE MODEL
+#
+# Family catalog channels: both LISTEN and NOTIFY use the single per-family
+# channel sync:{family}:catalog. Any entitlement in a family - wildcard
+# (review:*) or specific (review:review-001) - collapses to that one channel,
+# so no channel name ever contains a literal "*".
+#
+# Families: review, product, template. (team is NOT a family: on main it is
+# neither an entitlement key nor a synced entity type, only a review's owning
+# subject, and it is dropped as a routing concept.)
+#
+# Two actors with different entitlements:
+#   alice: review (wildcard key review:*) + template  -> listens review, template
+#   bob:   review (specific key review-001) + product -> listens review, product
+# alice and bob reach the SAME sync:review:catalog channel despite one holding a
+# wildcard key and the other a specific key - that is the GAP-2 fix in miniature.
+#
+# Over-notification is intentional and safe: the SSE payload is {cursor, family}
+# with no domain data, and the entitlement-scoped /pull is the authorization
+# boundary.
+#
+# Partial acceptance: a single push event carries several fields, each resolved
+# independently by HLC. Some fields can win while others lose - a PARTIAL
+# accept. The event is still persisted (the winning fields land in the event
+# log and are pullable), and the backend reports the losing fields to the
+# pusher as partial_hlc_conflict with the eventId in the rejected bucket. Since
+# server state changed and is pullable, a partial accept MUST ring the doorbell
+# exactly like a full accept; only a WHOLLY rejected batch (nothing persisted)
+# stays silent (I4). PushReviewPartiallyAccepted models this and exercises I7;
+# family equivalence (see MODELING SCOPE) covers the product/template cases.
+#
+# MODELS (paths checked by tests/guards/spec-drift.test.ts)
+#
+#   services/internal/sse/hub.go     - LISTEN channel derivation and fan-out
+#   services/internal/sse/handler.go - the per-actor subscription surface
+#
+# WHAT WE PROVE
+#
+#   I1 NoLiteralWildcardListen   - no LISTEN channel contains a literal "*"
+#   I2 NotifyListenAlignment     - an actor entitled to a notified family is woken
+#   I3 PullRemainsAuthoritative  - SSE carries no domain data (pull gates access)
+#   I4 RejectedEventsDoNotNotify - rejected pushes produce no notification
+#   I5 PerFamilyScope            - an actor is woken only for its entitled families
+#   I6 NotifyDedup               - at most one notify per family per push batch
+#   I7 PersistedChangeNotifies   - any persisted change (incl. partial accept) notifies
+
+# MODELING SCOPE (why two actors and three families are sufficient)
+#
+# Family equivalence: review, product, and template are structurally identical
+# under this contract - same sync:{family}:catalog derivation, same LISTEN and
+# NOTIFY mapping. The invariants are parametric in the family, and I5
+# (PerFamilyScope) proves families never interfere, so enumerating the 2^n
+# subsets of "which families changed in a batch" would add state-space cost
+# with no new behavior. Three representative families, plus one cross-family
+# batch (PushReviewAndProductAccepted) for dedup and independence, are enough.
+#
+# Actor sufficiency: the only distinctions that affect channel routing are
+# (a) a wildcard vs a specific key in the SAME family - alice holds review:*
+# while bob holds review:review-001, and both must resolve to the single
+# sync:review:catalog channel (the core wildcard fix); and (b) entitled vs
+# not-entitled to a family - alice has template but not product, bob has
+# product but not template. Two fixed actors already exercise both cases; more
+# actors or entitlement permutations widen the state space without adding a new
+# routing case. This is a deliberate scope decision, not missing coverage.
+
+# ---- Safety invariants ----
+
+always assertion I1_NoLiteralWildcardListen:
+  # PG LISTEN is exact-match. Subscriptions derive a family catalog channel
+  # (sync:{family}:catalog), never the raw entitlement key, so no channel ever
+  # carries a literal "*" - even for wildcard entitlements like review:*.
+  return not any_wildcard_listen
+
+always assertion I2_NotifyListenAlignment:
+  # No under-notification: if a family is notified, every actor entitled to that
+  # family (and therefore listening on its catalog channel) is woken.
+  if notified_review and (alice_listen_review and not alice_woken):
+    return False
+  if notified_review and (bob_listen_review and not bob_woken):
+    return False
+  if notified_product and (alice_listen_product and not alice_woken):
+    return False
+  if notified_product and (bob_listen_product and not bob_woken):
+    return False
+  if notified_template and (alice_listen_template and not alice_woken):
+    return False
+  if notified_template and (bob_listen_template and not bob_woken):
+    return False
+  return True
+
+always assertion I3_PullRemainsAuthoritative:
+  # The doorbell carries only {cursor, family}. No domain data ever rides the
+  # SSE channel; access is enforced by the entitlement-scoped pull that follows.
+  return not alice_received_data and not bob_received_data
+
+always assertion I4_RejectedEventsDoNotNotify:
+  # A push that is wholly rejected wakes no one on any channel.
+  if push_rejected:
+    return (not notified_review and not notified_product and not notified_template
+            and not alice_woken and not bob_woken)
+  return True
+
+always assertion I5_PerFamilyScope:
+  # No over-reach: an actor is woken only when a family it is entitled to was
+  # notified. Entitlement in family f never subscribes to another family.
+  if alice_woken and not ((notified_review and alice_listen_review)
+                          or (notified_product and alice_listen_product)
+                          or (notified_template and alice_listen_template)):
+    return False
+  if bob_woken and not ((notified_review and bob_listen_review)
+                        or (notified_product and bob_listen_product)
+                        or (notified_template and bob_listen_template)):
+    return False
+  return True
+
+always assertion I6_NotifyDedup:
+  # Channels are deduped per batch: many accepted events in one family produce a
+  # single notify on that family's catalog channel (mirrors the implementation
+  # coalescing notifications per distinct channel).
+  return (notify_count_review <= 1 and notify_count_product <= 1
+          and notify_count_template <= 1)
+
+always assertion I7_PersistedChangeNotifies:
+  # Any change that persists to the event log must ring the doorbell - including
+  # a PARTIAL accept, where some fields win and others lose. The winning fields
+  # are pullable, so the audience must be woken rather than left to the 30s
+  # poll. Only a wholly rejected batch persists nothing and stays silent (I4).
+  if persisted_review and not notified_review:
+    return False
+  if persisted_product and not notified_product:
+    return False
+  if persisted_template and not notified_template:
+    return False
+  return True
+
+# ---- Initialization ----
+
+action Init:
+  # LISTEN membership derived from entitlements at the family level. Wildcard and
+  # specific keys both collapse to the family, so these booleans capture exactly
+  # which catalog channels each actor subscribes to - with no "*" anywhere.
+  #   alice: review:* (wildcard) + template:*  -> review, template
+  #   bob:   review:review-001  + product:*    -> review, product
+  alice_listen_review = True
+  alice_listen_product = False
+  alice_listen_template = True
+  bob_listen_review = True
+  bob_listen_product = True
+  bob_listen_template = False
+
+  # No derived channel is ever a literal-wildcard channel (I1).
+  any_wildcard_listen = False
+
+  # Whether the most recent batch was wholly rejected.
+  push_rejected = False
+
+  # Per-family notify state for this batch.
+  notified_review = False
+  notified_product = False
+  notified_template = False
+  notify_count_review = 0
+  notify_count_product = 0
+  notify_count_template = 0
+
+  # Whether the batch persisted a change in each family (full OR partial accept).
+  # Anything persisted is pullable and must notify (I7); only a wholly rejected
+  # batch persists nothing.
+  persisted_review = False
+  persisted_product = False
+  persisted_template = False
+
+  # Whether each actor's stream received a wake on any of its channels.
+  alice_woken = False
+  bob_woken = False
+
+  # The SSE payload never carries domain data (I3); these stay False.
+  alice_received_data = False
+  bob_received_data = False
+
+# Each action models one push batch arriving at the server. A batch fully
+# determines the per-batch notification state, so every action resets that state
+# and then sets it. No action is ever permanently disabled, so the model is
+# cyclic (successive batches over time) with no terminal/deadlock state, and the
+# invariants are checked after every possible batch shape.
+
+# ---- Push accepted in the review family ----
+# Review events notify sync:review:catalog. Both actors are entitled (review).
+
+atomic action PushReviewAccepted:
+  push_rejected = False
+  notified_review = True
+  notified_product = False
+  notified_template = False
+  notify_count_review = 1
+  notify_count_product = 0
+  notify_count_template = 0
+  persisted_review = True
+  persisted_product = False
+  persisted_template = False
+  alice_woken = alice_listen_review
+  bob_woken = bob_listen_review
+
+# ---- Push accepted in the product family ----
+# Product events notify sync:product:catalog. Only bob is entitled (product).
+
+atomic action PushProductAccepted:
+  push_rejected = False
+  notified_review = False
+  notified_product = True
+  notified_template = False
+  notify_count_review = 0
+  notify_count_product = 1
+  notify_count_template = 0
+  persisted_review = False
+  persisted_product = True
+  persisted_template = False
+  alice_woken = alice_listen_product
+  bob_woken = bob_listen_product
+
+# ---- Push accepted in the template family ----
+# Template events notify sync:template:catalog. Only alice is entitled (template).
+
+atomic action PushTemplateAccepted:
+  push_rejected = False
+  notified_review = False
+  notified_product = False
+  notified_template = True
+  notify_count_review = 0
+  notify_count_product = 0
+  notify_count_template = 1
+  persisted_review = False
+  persisted_product = False
+  persisted_template = True
+  alice_woken = alice_listen_template
+  bob_woken = bob_listen_template
+
+# ---- Push batch with TWO review events (dedup) ----
+# Two accepted events in the same family coalesce to a SINGLE notify on
+# sync:review:catalog - exercises I6.
+
+atomic action PushReviewBatchAccepted:
+  push_rejected = False
+  notified_review = True
+  notified_product = False
+  notified_template = False
+  notify_count_review = 1  # deduped: two review events, one notify
+  notify_count_product = 0
+  notify_count_template = 0
+  persisted_review = True
+  persisted_product = False
+  persisted_template = False
+  alice_woken = alice_listen_review
+  bob_woken = bob_listen_review
+
+# ---- Push batch spanning two families ----
+# One review event + one product event: two distinct family channels notified,
+# one notify each. Each actor wakes for the families it is entitled to.
+
+atomic action PushReviewAndProductAccepted:
+  push_rejected = False
+  notified_review = True
+  notified_product = True
+  notified_template = False
+  notify_count_review = 1
+  notify_count_product = 1
+  notify_count_template = 0
+  persisted_review = True
+  persisted_product = True
+  persisted_template = False
+  alice_woken = alice_listen_review or alice_listen_product
+  bob_woken = bob_listen_review or bob_listen_product
+
+# ---- Push PARTIALLY accepted in the review family ----
+# Some fields win on HLC, others lose. The winning fields are persisted to the
+# event log (pullable), so this MUST notify sync:review:catalog exactly like a
+# full accept - the losing fields are reported to the pusher as
+# partial_hlc_conflict (eventId in the rejected bucket) but do not change the
+# doorbell. Exercises I7. Family equivalence covers product/template partials.
+
+atomic action PushReviewPartiallyAccepted:
+  push_rejected = False
+  notified_review = True
+  notified_product = False
+  notified_template = False
+  notify_count_review = 1
+  notify_count_product = 0
+  notify_count_template = 0
+  persisted_review = True
+  persisted_product = False
+  persisted_template = False
+  alice_woken = alice_listen_review
+  bob_woken = bob_listen_review
+
+# ---- Push wholly rejected ----
+# A batch whose events are all rejected (HLC conflict, access revoked, ...)
+# persists nothing and produces no notification on any channel - exercises I4.
+
+atomic action PushRejected:
+  push_rejected = True
+  notified_review = False
+  notified_product = False
+  notified_template = False
+  notify_count_review = 0
+  notify_count_product = 0
+  notify_count_template = 0
+  persisted_review = False
+  persisted_product = False
+  persisted_template = False
+  alice_woken = False
+  bob_woken = False

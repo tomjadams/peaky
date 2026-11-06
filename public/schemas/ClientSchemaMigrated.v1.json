@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orr-sample.vercel.app/schemas/ClientSchemaMigrated.v1.json",
+  "title": "ClientSchemaMigrated.v1",
+  "description": "Emitted by the client migration runner after applying one or more pending schema migrations on startup. Not emitted when no migrations are pending.",
+  "x-peaky-event": {
+    "type": "ClientSchemaMigrated.v1",
+    "sources": [
+      "peaky.system"
+    ]
+  },
+  "type": "object",
+  "properties": {
+    "migrationsApplied": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs of the migrations applied in this run, in application order.",
+      "markdownDescription": "IDs of the migrations applied in this run, in application order."
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "description": "Total number of standard migrations in the bundle after this run.",
+      "markdownDescription": "Total number of standard migrations in the bundle after this run."
+    }
+  },
+  "required": [
+    "migrationsApplied",
+    "schemaVersion"
+  ],
+  "additionalProperties": false
+}

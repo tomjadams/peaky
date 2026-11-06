@@ -1,0 +1,580 @@
+/* =============================================================================
+   Modern Mermaid Diagram Styling - Bold Neo Aesthetic
+   Inspired by eraser.io, Excalidraw, and Mermaid's "Neo" look
+   ============================================================================= */
+
+/* -----------------------------------------------------------------------------
+   Markdown tables - slightly larger text for architecture walkthrough readability
+   ----------------------------------------------------------------------------- */
+.md-typeset table:not([class]) :is(th, td) {
+  font-size: 0.78rem;
+}
+
+.md-typeset table:not([class]) th {
+  font-weight: 700;
+}
+
+/* -----------------------------------------------------------------------------
+   Container - Floating card with pronounced depth
+   ----------------------------------------------------------------------------- */
+.mermaid {
+  background: linear-gradient(145deg, #ffffff 0%, #f5f3ff 50%, #ede9fe 100%);
+  border: 2px solid #c4b5fd;
+  border-radius: 24px;
+  padding: 2.5rem;
+  margin: 2rem 0;
+  overflow-x: auto;
+  box-shadow:
+    0 4px 6px rgba(139, 92, 246, 0.08),
+    0 10px 20px rgba(139, 92, 246, 0.1),
+    0 20px 40px rgba(139, 92, 246, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mermaid:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 12px rgba(139, 92, 246, 0.1),
+    0 16px 32px rgba(139, 92, 246, 0.12),
+    0 32px 64px rgba(139, 92, 246, 0.1);
+}
+
+/* Dark mode - deep purple glass with glow */
+[data-md-color-scheme="slate"] .mermaid {
+  background: linear-gradient(145deg, #1e1b4b 0%, #2e1065 50%, #1e1b4b 100%);
+  border-color: #6d28d9;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.3),
+    0 10px 20px rgba(0, 0, 0, 0.25),
+    0 0 60px rgba(139, 92, 246, 0.15),
+    inset 0 1px 0 rgba(167, 139, 250, 0.1);
+}
+
+[data-md-color-scheme="slate"] .mermaid:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 12px rgba(0, 0, 0, 0.35),
+    0 16px 32px rgba(0, 0, 0, 0.3),
+    0 0 80px rgba(139, 92, 246, 0.25),
+    inset 0 1px 0 rgba(167, 139, 250, 0.15);
+}
+
+/* Timeline diagrams need calmer contrast than the default purple card treatment. */
+.mermaid:has(svg[aria-roledescription="timeline"]) {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  border-color: #cbd5e1;
+  box-shadow:
+    0 4px 6px rgba(148, 163, 184, 0.08),
+    0 10px 20px rgba(148, 163, 184, 0.1);
+}
+
+.mermaid:has(svg[aria-roledescription="timeline"]):hover {
+  box-shadow:
+    0 8px 12px rgba(148, 163, 184, 0.1),
+    0 16px 32px rgba(148, 163, 184, 0.12);
+}
+
+.mermaid svg[aria-roledescription="timeline"] rect {
+  fill: #f8fafc !important;
+  stroke: #94a3b8 !important;
+}
+
+.mermaid svg[aria-roledescription="timeline"] line,
+.mermaid svg[aria-roledescription="timeline"] path {
+  stroke: #94a3b8 !important;
+}
+
+.mermaid svg[aria-roledescription="timeline"] marker path {
+  fill: #94a3b8 !important;
+}
+
+[data-md-color-scheme="slate"]
+  .mermaid:has(svg[aria-roledescription="timeline"]) {
+  background: linear-gradient(145deg, #0f172a 0%, #111827 100%);
+  border-color: #475569;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.3),
+    0 10px 20px rgba(0, 0, 0, 0.25);
+}
+
+[data-md-color-scheme="slate"]
+  .mermaid:has(svg[aria-roledescription="timeline"]):hover {
+  box-shadow:
+    0 8px 12px rgba(0, 0, 0, 0.35),
+    0 16px 32px rgba(0, 0, 0, 0.3);
+}
+
+[data-md-color-scheme="slate"]
+  .mermaid
+  svg[aria-roledescription="timeline"]
+  rect {
+  fill: #1e293b !important;
+  stroke: #94a3b8 !important;
+}
+
+[data-md-color-scheme="slate"]
+  .mermaid
+  svg[aria-roledescription="timeline"]
+  text,
+[data-md-color-scheme="slate"]
+  .mermaid
+  svg[aria-roledescription="timeline"]
+  tspan {
+  fill: #e2e8f0 !important;
+}
+
+[data-md-color-scheme="slate"]
+  .mermaid
+  svg[aria-roledescription="timeline"]
+  line,
+[data-md-color-scheme="slate"]
+  .mermaid
+  svg[aria-roledescription="timeline"]
+  path,
+[data-md-color-scheme="slate"]
+  .mermaid
+  svg[aria-roledescription="timeline"]
+  marker
+  path {
+  stroke: #94a3b8 !important;
+  fill: #94a3b8 !important;
+}
+
+/* -----------------------------------------------------------------------------
+   Flowchart Nodes - Bold, rounded shapes with strong presence
+   ----------------------------------------------------------------------------- */
+.mermaid .node rect,
+.mermaid .node polygon,
+.mermaid .node circle,
+.mermaid .node ellipse,
+.mermaid .node path {
+  rx: 16px;
+  ry: 16px;
+  stroke-width: 2px;
+  filter: drop-shadow(0 4px 8px rgba(139, 92, 246, 0.2));
+  transition: all 0.2s ease;
+}
+
+.mermaid .node:hover rect,
+.mermaid .node:hover polygon {
+  filter: drop-shadow(0 6px 12px rgba(139, 92, 246, 0.3));
+}
+
+/* Node labels - bold, readable typography */
+.mermaid .node .label,
+.mermaid .nodeLabel {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+/* Dark mode nodes - ensure visibility */
+[data-md-color-scheme="slate"] .mermaid .node rect,
+[data-md-color-scheme="slate"] .mermaid .node polygon {
+  filter: drop-shadow(0 4px 12px rgba(139, 92, 246, 0.35));
+}
+
+[data-md-color-scheme="slate"] .mermaid .nodeLabel,
+[data-md-color-scheme="slate"] .mermaid .node .label {
+  fill: #f9fafb !important;
+  color: #f9fafb !important;
+}
+
+/* -----------------------------------------------------------------------------
+   Subgraphs/Clusters - Bold containers with presence
+   ----------------------------------------------------------------------------- */
+.mermaid .cluster rect {
+  rx: 20px !important;
+  ry: 20px !important;
+  stroke-dasharray: 8 4;
+  stroke-width: 2px;
+  filter: drop-shadow(0 2px 4px rgba(139, 92, 246, 0.1));
+}
+
+.mermaid .cluster .nodeLabel,
+.mermaid .cluster-label {
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Dark mode clusters */
+[data-md-color-scheme="slate"] .mermaid .cluster rect {
+  filter: drop-shadow(0 2px 8px rgba(139, 92, 246, 0.25));
+}
+
+[data-md-color-scheme="slate"] .mermaid .cluster .nodeLabel,
+[data-md-color-scheme="slate"] .mermaid .cluster-label {
+  fill: #e4e4e7 !important;
+}
+
+/* Fix ALL text truncation - ensure labels don't clip anywhere */
+.mermaid foreignObject {
+  overflow: visible !important;
+}
+
+.mermaid .nodeLabel,
+.mermaid .edgeLabel,
+.mermaid .cluster-label,
+.mermaid .label {
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.mermaid .node foreignObject,
+.mermaid .cluster-label foreignObject,
+.mermaid .edgeLabel foreignObject {
+  overflow: visible !important;
+}
+
+.mermaid .node foreignObject > div,
+.mermaid .cluster-label foreignObject > div,
+.mermaid .edgeLabel foreignObject > div {
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
+/* Fix edge label background - make it seamless */
+.mermaid .edgeLabel rect {
+  opacity: 0 !important;
+  fill: transparent !important;
+}
+
+.mermaid .edgeLabels .edgeLabel rect {
+  opacity: 0 !important;
+  fill: transparent !important;
+}
+
+/* Style edge label text container instead */
+.mermaid .edgeLabel .labelBkg,
+.mermaid .edgeLabel span,
+.mermaid .edgeLabel p {
+  background-color: transparent !important;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Light mode edge labels */
+.mermaid .edgeLabel .label {
+  background-color: #f5f3ff;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+/* Dark mode edge labels */
+[data-md-color-scheme="slate"] .mermaid .edgeLabel .label {
+  background-color: #1e1b4b;
+}
+
+/* -----------------------------------------------------------------------------
+   Edges/Arrows - Bold, confident lines
+   ----------------------------------------------------------------------------- */
+.mermaid .edgePath path.path {
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mermaid marker path {
+  fill: #7c3aed;
+}
+
+/* Edge labels - transparent background, text only */
+.mermaid .edgeLabel {
+  background: transparent !important;
+  padding: 0;
+  border-radius: 0;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .edgeLabel {
+  background: transparent !important;
+  color: #f9fafb;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid marker path {
+  fill: #a78bfa;
+}
+
+[data-md-color-scheme="slate"] .mermaid .edgePath path.path {
+  stroke: #a78bfa;
+}
+
+/* -----------------------------------------------------------------------------
+   ERD - Bold card-style entities with strong contrast
+   ----------------------------------------------------------------------------- */
+.mermaid .er.entityBox {
+  rx: 16px;
+  ry: 16px;
+  stroke-width: 2px;
+  filter: drop-shadow(0 4px 12px rgba(139, 92, 246, 0.15));
+}
+
+.mermaid .er.entityLabel {
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0;
+  fill: #1f2937 !important;
+}
+
+.mermaid .er.attributeBoxOdd,
+.mermaid .er.attributeBoxEven {
+  rx: 0;
+  stroke-width: 0;
+}
+
+/* ERD relationship lines */
+.mermaid .er.relationshipLine {
+  stroke-width: 2.5px;
+}
+
+.mermaid .er.relationshipLabel {
+  font-size: 12px;
+  font-weight: 600;
+  fill: #4b5563;
+}
+
+/* Dark mode ERD - critical contrast fixes */
+[data-md-color-scheme="slate"] .mermaid .er.entityBox {
+  filter: drop-shadow(0 4px 16px rgba(139, 92, 246, 0.3));
+}
+
+[data-md-color-scheme="slate"] .mermaid .er.entityLabel {
+  fill: #f9fafb !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .er.attributeBoxOdd,
+[data-md-color-scheme="slate"] .mermaid .er.attributeBoxEven {
+  fill: #2e1065 !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .er.relationshipLabel {
+  fill: #d4d4d8;
+}
+
+[data-md-color-scheme="slate"] .mermaid .er.relationshipLine {
+  stroke: #a78bfa;
+}
+
+/* ERD attribute rows - force dark fills in dark mode
+   Mermaid generates inline HSL fills which override CSS,
+   so we need to target all paths inside entity groups */
+[data-md-color-scheme="slate"] .mermaid svg g g path:not([fill="none"]) {
+  fill: #1e1b4b !important;
+}
+
+/* Entity box backgrounds */
+[data-md-color-scheme="slate"] .mermaid svg rect.entityBox {
+  fill: #2e1065 !important;
+}
+
+/* ERD relationship markers - circles */
+[data-md-color-scheme="slate"] .mermaid svg circle {
+  fill: #18181b !important;
+  stroke: #a78bfa !important;
+}
+
+/* But keep marker paths visible */
+[data-md-color-scheme="slate"] .mermaid svg marker path {
+  stroke: #a78bfa !important;
+}
+
+/* -----------------------------------------------------------------------------
+   Sequence Diagrams - Bold actors and confident messages
+   ----------------------------------------------------------------------------- */
+.mermaid .actor {
+  rx: 14px;
+  ry: 14px;
+  stroke-width: 2px;
+  filter: drop-shadow(0 4px 8px rgba(139, 92, 246, 0.2));
+}
+
+.mermaid .actor-line {
+  stroke-dasharray: 6 4;
+  stroke-width: 2px;
+}
+
+.mermaid text.actor {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+/* Sequence notes - warm accent with presence */
+.mermaid .note {
+  rx: 10px;
+  ry: 10px;
+  stroke-width: 2px;
+  filter: drop-shadow(0 2px 6px rgba(251, 191, 36, 0.25));
+}
+
+/* Message arrows */
+.mermaid .messageLine0,
+.mermaid .messageLine1 {
+  stroke-width: 2px;
+}
+
+.mermaid .messageText {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Activation boxes */
+.mermaid .activation0,
+.mermaid .activation1,
+.mermaid .activation2 {
+  rx: 6px;
+  ry: 6px;
+}
+
+/* Dark mode sequence diagrams */
+[data-md-color-scheme="slate"] .mermaid .actor {
+  filter: drop-shadow(0 4px 12px rgba(139, 92, 246, 0.35));
+}
+
+[data-md-color-scheme="slate"] .mermaid text.actor {
+  fill: #f9fafb !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .messageText {
+  fill: #f9fafb !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .messageLine0,
+[data-md-color-scheme="slate"] .mermaid .messageLine1 {
+  stroke: #a78bfa;
+}
+
+[data-md-color-scheme="slate"] .mermaid .note {
+  filter: drop-shadow(0 2px 8px rgba(251, 191, 36, 0.35));
+}
+
+/* -----------------------------------------------------------------------------
+   State Diagrams - Bold states with clear hierarchy
+   ----------------------------------------------------------------------------- */
+.mermaid .state {
+  rx: 16px;
+  ry: 16px;
+}
+
+.mermaid .stateGroup .composit {
+  rx: 20px;
+  ry: 20px;
+}
+
+.mermaid .statediagram-state rect.divider {
+  stroke-dasharray: 6 4;
+}
+
+/* Start/end markers - vibrant violet */
+.mermaid .start-state,
+.mermaid g.stateGroup circle.state-start {
+  fill: #7c3aed;
+  filter: drop-shadow(0 2px 4px rgba(124, 58, 237, 0.4));
+}
+
+.mermaid .end-state-outer,
+.mermaid .end-state-inner {
+  fill: #7c3aed;
+}
+
+/* State labels */
+.mermaid .stateLabel {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* Transition labels */
+.mermaid .statediagram-cluster-label,
+.mermaid .statediagram-state .nodeLabel {
+  font-weight: 700;
+}
+
+/* Dark mode states */
+[data-md-color-scheme="slate"] .mermaid .start-state,
+[data-md-color-scheme="slate"] .mermaid g.stateGroup circle.state-start {
+  fill: #a78bfa;
+  filter: drop-shadow(0 2px 8px rgba(167, 139, 250, 0.5));
+}
+
+[data-md-color-scheme="slate"] .mermaid .end-state-outer,
+[data-md-color-scheme="slate"] .mermaid .end-state-inner {
+  fill: #a78bfa;
+}
+
+[data-md-color-scheme="slate"] .mermaid .stateLabel {
+  fill: #f9fafb !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .statediagram-state .nodeLabel {
+  fill: #f9fafb !important;
+}
+
+/* -----------------------------------------------------------------------------
+   Dark Mode Global Overrides - High contrast, vibrant glow
+   ----------------------------------------------------------------------------- */
+
+/* All text in dark mode must be light */
+[data-md-color-scheme="slate"] .mermaid text {
+  fill: #f9fafb !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .label,
+[data-md-color-scheme="slate"] .mermaid span {
+  color: #f9fafb !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid tspan {
+  fill: #f9fafb !important;
+}
+
+/* Ensure node hover states work in dark mode */
+[data-md-color-scheme="slate"] .mermaid .node:hover rect,
+[data-md-color-scheme="slate"] .mermaid .node:hover polygon {
+  filter: drop-shadow(0 6px 16px rgba(139, 92, 246, 0.5));
+}
+
+/* -----------------------------------------------------------------------------
+   Error state styling
+   ----------------------------------------------------------------------------- */
+.mermaid.mermaid-error {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+[data-md-color-scheme="slate"] .mermaid.mermaid-error {
+  background: #450a0a;
+  border-color: #dc2626;
+}
+
+/* -----------------------------------------------------------------------------
+   Responsive adjustments
+   ----------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .mermaid {
+    padding: 1.5rem;
+    border-radius: 16px;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Print styles - clean, high contrast
+   ----------------------------------------------------------------------------- */
+@media print {
+  .mermaid {
+    background: #ffffff !important;
+    border: 1px solid #d4d4d8 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+
+  .mermaid text {
+    fill: #000000 !important;
+  }
+}

@@ -1,0 +1,383 @@
+<!-- Local-first architecture — rebuilt on the /explainer kit (editorial style).
+     Assemble: python3 .factory/skills/explainer/assemble.py explainers/_sources/local-first-architecture.html -->
+
+<p style="font:15px/1.6 -apple-system,sans-serif;max-width:640px;margin:40px auto;padding:18px 22px;border:1px solid #b45309;color:#78350f;background:#fffbeb">
+  <strong>Note:</strong> this is an <code>/explainer</code> content source, not a finished page —
+  assemble it first (see <code>.factory/skills/explainer/README.md</code>):<br>
+  <code>python3 .factory/skills/explainer/assemble.py explainers/_sources/local-first-architecture.html</code>
+</p>
+
+<script type="application/json" data-slot="meta">
+{
+  "title": "Local-First — the browser is the source of truth, not the server",
+  "style": "editorial",
+  "components": ["comparison", "stat", "ledger", "before-after", "contrast", "filetree", "stepper", "flow"],
+  "output": "explainers/local-first-architecture-explainer.html",
+  "md": true,
+  "thesis": "Peaky writes to a local SQLite database in the browser first and syncs to PostgreSQL in the background, so a save never waits on the network; conflicts resolve per field with Hybrid Logical Clocks, and PostgreSQL's own LISTEN/NOTIFY wakes peers in real time without ever putting domain data on the wire.",
+  "slides": [
+    {"kicker": "Hero", "title": "Local-first: write here, sync in the background", "point": "the browser is the primary source of truth for a save; the server catches up, not the user"},
+    {"kicker": "01 · The problem", "title": "Every save waits on the network", "point": "170–420ms round trip per save, worldwide, because the server is in the critical path of every write"},
+    {"kicker": "02 · The fixes that fail", "title": "Replication and pub-sub trade one problem for another", "point": "multi-region databases and message buses add coordination and failure modes without moving where writes land first"},
+    {"kicker": "03 · Flip the model", "title": "Write local. Sync later.", "point": "same product, four concerns, compared: latency, offline, conflicts, real-time — local-first wins all four the same way, by keeping the network out of the write path"},
+    {"kicker": "04 · The shape", "title": "Two processes, one shared schema", "point": "the browser owns the write path (app/local-db, app/services/sync); the server owns durability and fan-out (services/cmd/peaky-api, peaky-sse); shared/db/schema/* is the one authority both read"},
+    {"kicker": "05 · Global sync", "title": "The write is local. The sync is a pipeline.", "point": "write to SQLite, push in the background, resolve per field on the server, wake every entitled peer — the same four steps from any continent"},
+    {"kicker": "06 · Resilience", "title": "The client doesn't depend on the server being up", "point": "no internet, a Postgres maintenance window, or a service restart all degrade to 'the outbox is a little behind', never to 'the app is down'"},
+    {"kicker": "07 · Conflicts & HLC", "title": "Two people, one field, at the same time", "point": "wall-clock last-write-wins fails under clock drift; a Hybrid Logical Clock orders writes deterministically even within the same millisecond"},
+    {"kicker": "07 · Conflicts & HLC", "title": "Four scenarios, one deterministic rule", "point": "push order never decides — a newer HLC wins regardless of arrival order, ties break on actor id, and every field resolves independently"},
+    {"kicker": "07 · Conflicts & HLC", "title": "Four protection layers", "point": "per-field resolution, an atomic SQL WHERE clause, clock sync on pull, and a 60-second drift guard — each closes a different way the others could be defeated"},
+    {"kicker": "08 · Real-time updates", "title": "Real-time, without domain data on the wire", "point": "PostgreSQL's own pg_notify wakes peaky-sse, which fans out a cursor pointer only — a compromised stream leaks a timestamp, nothing else"},
+    {"kicker": "09 · Peaky, end to end", "title": "One save, start to finish", "point": "nine steps from Alice's click in Amsterdam to Bob's screen updating in Singapore — only two of them touch the network, and neither one is on Alice's critical path"},
+    {"kicker": "Guardrails", "title": "Three invariants to hold in your head", "point": "write local first; the server resolves conflicts, not the client; SSE is an optimization, not a dependency"},
+    {"kicker": "Close", "title": "The user never waits. The server catches up.", "point": "every layer above exists to keep that one property true"}
+  ],
+  "facts": [
+    "Traditional round trip: Amsterdam → Singapore ~170ms one-way, Chicago → Singapore ~210ms one-way, 340–420ms perceived per save",
+    "Local write lands in browser SQLite (WASM + OPFS) in ~1ms via LocalMutation.commit() in app/services/local-mutation.ts — state, domain event, and outbox entry in one transaction",
+    "Background sync runs through app/services/sync/SyncEngine.ts, pushing the local_outbox table to peaky-api with adaptive retry and backoff",
+    "Conflict resolution is per field, not per entity or per row, using a Hybrid Logical Clock: wallclock:counter:actorId, compared lexicographically",
+    "HLC logic lives in services/internal/syncengine/conflict/conflict.go (WinsOver, ApplyFields); the atomic safety net is a SQL upsert in services/internal/syncengine/repo/queries.sql: ON CONFLICT ... WHERE EXCLUDED.hlc > field_versions.hlc OR (equal hlc AND actor_id greater)",
+    "Client-side drift guard: app/services/sync/HLCClock.ts sets MAX_DRIFT_MS = 60000; receive() advances the local clock on every pull to stay causally current",
+    "peaky-sse (services/cmd/peaky-sse) holds a PostgreSQL LISTEN connection and fans a cursor-pointer-only frame to entitled browsers on pg_notify; it never holds domain data, so a compromised stream leaks nothing but a timestamp",
+    "A client without SSE still converges — it falls back to 30-second polling; SSE is an optimization, not a correctness dependency",
+    "shared/db/schema/* (Drizzle) is the single schema authority for both the browser's SQLite database and the server's PostgreSQL database"
+  ],
+  "links": []
+}
+</script>
+
+<template data-slot="content">
+<!-- ── HERO ── -->
+<section id="top" class="hero">
+  <div class="reveal">
+    <div class="hero-kicker">Peaky Engineering · Architecture explainer</div>
+    <h1 class="display">Local-<em>First</em></h1>
+    <p class="lede">Save here, sync in the background. The browser is the primary source of truth for a write — the server catches up, not the user.</p>
+    <p class="gloss-hint">New to the stack? <button class="term" data-term="hlc">Dotted terms</button> open a plain-English definition.</p>
+    <details class="tldr">
+      <summary>TL;DR</summary>
+      <div class="tldr-body">
+        <p><strong>The one rule:</strong> write to local SQLite first, push to the server in the background. The user never waits on the network.</p>
+        <p>Conflicts resolve per field with a Hybrid Logical Clock. Server-sent events wake connected peers instantly — no polling, no domain data on the wire.</p>
+        <p><strong>What stays the same:</strong> PostgreSQL is still the durable, authoritative store. It just isn't in the hot path of a save anymore.</p>
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- ── 01 · THE PROBLEM ── -->
+<section id="oldworld">
+  <div class="reveal" id="oldworldHead">
+    <span class="eyebrow">01 · The problem</span>
+    <h2 class="sec-title">Every save waits on the network</h2>
+    <p class="sec-sub">Client → server → Postgres → client. Simple to reason about. The wait becomes the whole experience once a team spans continents.</p>
+  </div>
+  <div class="prose reveal reveal-delay-1">
+    <p>Most apps default to one model: click Save, wait for the server's response, then update the UI. In a single office the round trip is 2–5&nbsp;ms — no one notices.</p>
+    <p>Across continents it is the dominant experience. Every save pays the network cost in full, twice over: once out, once back.</p>
+  </div>
+  <div class="artifact reveal reveal-delay-2" id="oldworldStat"></div>
+</section>
+
+<!-- ── 02 · THE FIXES THAT FAIL ── -->
+<section id="fixesfail">
+  <div class="reveal" id="fixesfailHead">
+    <span class="eyebrow">02 · The fixes that fail</span>
+    <h2 class="sec-title">Replication and pub-sub trade one problem for another</h2>
+    <p class="sec-sub">Neither approach changes where a write lands first. The server stays in the critical path, and each new layer adds its own failure mode.</p>
+  </div>
+  <div class="artifact reveal reveal-delay-1" id="fixesfailLedger"></div>
+  <p class="muted-note reveal reveal-delay-2">Neither of these moves where writes land first. The server is still in the critical path — every new layer just adds its own failure mode.</p>
+</section>
+
+<!-- ── 03 · FLIP THE MODEL ── -->
+<section id="concept">
+  <div class="reveal" id="conceptHead">
+    <span class="eyebrow">03 · Local-first: flip the model</span>
+    <h2 class="sec-title">Write local. Sync in the background.</h2>
+    <p class="sec-sub">Make the browser the immediate source of truth. Let the server be the background authority — additive to the interaction loop, not foundational to it.</p>
+  </div>
+  <div class="prose reveal reveal-delay-1">
+    <p>Instead of: click → wait for the server → update the UI. Local-first: click → write to local SQLite (≈1&nbsp;ms) → update the UI → sync to the server in the background. If the network is slow or fully down, the change queues in an outbox and flushes when connectivity returns.</p>
+  </div>
+  <div class="artifact reveal reveal-delay-2" id="conceptComparison"></div>
+</section>
+
+<!-- ── 04 · THE SHAPE ── -->
+<section id="shape">
+  <div class="reveal" id="shapeHead">
+    <span class="eyebrow">04 · The shape</span>
+    <h2 class="sec-title">Two processes, one shared schema</h2>
+    <p class="sec-sub">The browser owns the write path. The server owns durability and fan-out. <code>shared/db/schema/*</code> is the one authority both read from.</p>
+  </div>
+  <div class="artifact reveal reveal-delay-1" id="shapeTree"></div>
+</section>
+
+<!-- ── 05 · GLOBAL SYNC ── -->
+<section id="global">
+  <div class="reveal" id="globalHead">
+    <span class="eyebrow">05 · One instant experience, three continents</span>
+    <h2 class="sec-title">The write is local. The sync is a pipeline.</h2>
+    <p class="sec-sub">Amsterdam at 9&nbsp;AM, Singapore at 11&nbsp;PM — write latency is the same everywhere, because the network is never in the path of the write itself.</p>
+  </div>
+  <figure class="reveal reveal-delay-1" id="globalFlow" aria-label="the local-first sync pipeline"></figure>
+  <p class="muted-note reveal reveal-delay-2">Every Peaky user writes against a local SQLite database that lives in <button class="term" data-term="opfs">OPFS</button> and persists across page loads. When two people edit the same field at once, both changes reach the server; the loser is never silently dropped — it loses one field's conflict, not the whole write.</p>
+</section>
+
+<!-- ── 06 · RESILIENCE ── -->
+<section id="resilience">
+  <div class="reveal" id="resilienceHead">
+    <span class="eyebrow">06 · Resilience</span>
+    <h2 class="sec-title">The client doesn't depend on the server being up</h2>
+    <p class="sec-sub">Traditional apps fail two ways when the network degrades: a spinner until it returns, or a silently dropped write. Local-first avoids both — the <button class="term" data-term="outbox">outbox</button> queues and flushes whenever connectivity allows, even hours later.</p>
+  </div>
+  <div class="artifact reveal reveal-delay-1" id="resilienceBA"></div>
+</section>
+
+<!-- ── 07 · CONFLICTS & HLC ── -->
+<section id="conflicts">
+  <div class="reveal" id="conflictsHead">
+    <span class="eyebrow">07 · Conflicts &amp; HLC</span>
+    <h2 class="sec-title">Two people, one field, at the same time</h2>
+    <p class="sec-sub">Local-first removes the server from the write path — so two people can edit the same field while offline or on high latency. Something has to decide, deterministically, which write wins.</p>
+  </div>
+  <div class="prose reveal reveal-delay-1">
+    <p>A traditional server serializes every write; the second one silently overwrites the first, and the user never finds out. Local-first can't rely on that — writes arrive out of order, sometimes hours apart.</p>
+    <p>Wall-clock "last write wins" fails too: client clocks drift. A laptop resuming from sleep can read 90 seconds behind — every write from it would lose, always.</p>
+    <p>A <button class="term" data-term="hlc">Hybrid Logical Clock</button> combines the wall clock, a logical counter, and the actor's id into one string. Comparing two HLCs lexicographically gives a total order that survives clock drift and stays correct even within the same millisecond.</p>
+  </div>
+  <div class="artifact reveal reveal-delay-2" id="conflictsCode">
+    <p class="eyebrow" style="margin-bottom:16px">HLC wire format</p>
+    <div class="code-block">
+      <div class="code-head"><i></i>conflict.go</div>
+<pre><span class="y-str">"1716220800000</span><span class="y-com">:</span><span class="y-num">0001</span><span class="y-com">:</span><span class="y-key">actor_alice"</span>
+<span class="y-com">// wallclock (unix ms) : counter (zero-padded, 4 digits) : actorId (deterministic tiebreak)</span></pre>
+    </div>
+  </div>
+  <div class="artifact reveal reveal-delay-3" id="conflictsStepper"></div>
+  <div class="artifact reveal reveal-delay-4" id="conflictsLedger"></div>
+</section>
+
+<!-- ── 08 · SSE ── -->
+<section id="sse">
+  <div class="reveal" id="sseHead">
+    <span class="eyebrow">08 · Real-time updates</span>
+    <h2 class="sec-title">Real-time, without domain data on the wire</h2>
+    <p class="sec-sub">Without <button class="term" data-term="sse">SSE</button>, a browser polls every 30 seconds. With it, PostgreSQL's own notify wakes every entitled peer the moment a push lands.</p>
+  </div>
+  <div class="artifact reveal reveal-delay-1" id="sseContrast"></div>
+  <div class="artifact reveal reveal-delay-2" id="ssePayload">
+    <p class="eyebrow" style="margin-bottom:16px">SSE payload — cursor pointer only</p>
+    <div class="code-block">
+      <div class="code-head"><i></i>data: (peaky-sse frame)</div>
+<pre>{
+  <span class="y-key">"cursor"</span>: <span class="y-str">"2026-06-10T09:00:00.000000000Z"</span>,
+  <span class="y-key">"subjectType"</span>: <span class="y-str">"team"</span>,
+  <span class="y-key">"subjectId"</span>: <span class="y-str">"payments-scalability"</span>
+}</pre>
+    </div>
+    <p class="muted-note">No field values. No user data. No secrets. <code>peaky-sse</code> never holds domain data — it cannot leak what it does not have.</p>
+  </div>
+</section>
+
+<!-- ── 09 · PEAKY END TO END ── -->
+<section id="walkthrough">
+  <div class="reveal" id="walkHead">
+    <span class="eyebrow">09 · Peaky, end to end</span>
+    <h2 class="sec-title">One save, start to finish</h2>
+    <p class="sec-sub">Alice clicks Save in Amsterdam. Bob's screen updates in Singapore. Only two of the nine steps touch the network, and neither is on Alice's critical path.</p>
+  </div>
+  <div class="artifact reveal reveal-delay-1" id="walkStepper"></div>
+</section>
+
+<!-- ── GUARDRAILS ── -->
+<section id="guardrails">
+  <div class="reveal" id="guardHead">
+    <span class="eyebrow">Guardrails</span>
+    <h2 class="sec-title">Three invariants to hold in your head</h2>
+  </div>
+  <div class="artifact reveal reveal-delay-1" id="guardLedger"></div>
+</section>
+
+<!-- ── CLOSE ── -->
+<section id="close">
+  <div class="reveal close-wrap">
+    <div class="eyebrow" style="color:var(--accent);margin-bottom:20px">The takeaway</div>
+    <h2 class="claim-line">The user never waits. <em>The server catches up.</em></h2>
+  </div>
+  <figure class="reveal reveal-delay-1" id="closeFlow" aria-label="the local-first sync pipeline, again"></figure>
+</section>
+
+<p class="muted-note reveal" style="max-width:1100px;margin:0 auto 90px;padding:0 clamp(24px,5vw,80px)">Every layer above exists to keep one property true: a save finishes in the browser, not on the network.</p>
+</template>
+
+<style data-slot="page-css">
+/* prose — flowing context paragraphs above a component; the kit ships
+   sec-sub/muted-note/tldr-body but not a general reading block */
+.prose{max-width:var(--measure);color:var(--text-dim);line-height:1.7;margin-top:28px;font-size:.98rem}
+.prose p+p{margin-top:16px}
+.prose strong{color:var(--text);font-weight:600}
+.prose code{font-family:var(--mono);font-size:.85em;color:var(--accent)}
+.close-wrap{max-width:820px}
+</style>
+
+<script data-slot="page-js">
+window.GLOSSARY = {
+  hlc: {t:'Hybrid Logical Clock', d:'A timestamp of the form <code>wallclock:counter:actorId</code>. Comparing two HLCs lexicographically gives a deterministic total order — resistant to clock drift, correct even within the same millisecond.'},
+  opfs: {t:'OPFS', d:'Origin Private File System — the browser storage backing the local SQLite database. It persists across page loads and is invisible to the user.'},
+  outbox: {t:'Outbox', d:'<code>local_outbox</code>, a SQLite table queuing mutations not yet confirmed by the server. <code>SyncEngine</code> drains it in the background with adaptive retry and backoff.'},
+  sse: {t:'Server-Sent Events', d:'A one-way push channel from <code>peaky-sse</code> to the browser. Here it carries only a cursor pointer — never a field value, never domain data.'}
+};
+
+/* 01 · The problem — the round-trip cost, as scale before detail */
+var oldworldStat = renderStats('#oldworldStat', { items: [
+  {n: 170, label: 'ms Amsterdam → Singapore', sub: 'one-way network RTT', tone: 'warn'},
+  {n: 210, label: 'ms Chicago → Singapore', sub: 'one-way network RTT', tone: 'warn'},
+  {n: '340–420', label: 'ms perceived per save', sub: 'client → server → Postgres → client', tone: 'error'}
+]});
+
+/* 02 · The fixes that fail — replication and pub-sub, the honest costs */
+renderLedger('#fixesfailLedger', { groups: [
+  {label: 'Multi-region databases', rows: [
+    {title: 'Distributed transaction coordination', sub: '2PC, Paxos, or Raft, just to keep replicas agreeing', flag: {kind:'gap', label:'operational cost'}},
+    {title: 'Strong consistency reintroduces latency', sub: 'as replication lag, not network RTT — the wait just moves'},
+    {title: 'Eventual consistency reintroduces staleness', sub: 'a read can be behind the write that just happened'}
+  ]},
+  {label: 'Pub-sub / CDN caching', rows: [
+    {title: 'Cache invalidation is coordination in disguise', sub: 'adding a bus doesn\u2019t remove the problem, it relocates it'},
+    {title: 'The bus becomes a new dependency', sub: 'must be reliable, ordered, and always on'},
+    {title: 'Offline breaks the model entirely', sub: 'no events, no updates, a stale UI with no path to catch up', flag: {kind:'gap', label:'no offline story'}}
+  ]}
+]});
+
+/* 03 · Flip the model — traditional vs local-first, same four concerns */
+renderComparison('#conceptComparison', {
+  left: {name:'Traditional', scope:'server-first writes'},
+  right: {name:'Local-first', scope:'browser-first writes'},
+  mid: 'Same product — how does a save actually behave?',
+  rows: [
+    {concern:'Write latency', left:'170\u2013420 ms round trip, from anywhere', right:'~1 ms SQLite write, from anywhere'},
+    {concern:'Offline / flaky network', left:'a spinner, or a silently dropped write', leftAsk:true, right:'queues in an outbox, flushes on reconnect'},
+    {concern:'Concurrent edits', left:'server serializes; the second write silently wins', leftAsk:true, right:'HLC resolves per field; nothing is silently dropped'},
+    {concern:'Real-time updates', left:'poll every 30s, or run a message bus', right:'SSE wake-up, cursor pointer only', subject:true, note:'the rest of this page is about the right column'}
+  ]
+});
+
+/* 04 · The shape — the centerpiece. Real paths, current architecture, no
+   before/after diff — so the tree carries no added/moved/removed marks. */
+renderFiletree('#shapeTree', {
+  legend: false,
+  panes: [
+    {label: 'Browser — where every write lands first', tree: [
+      {name: 'app/local-db/', children: [
+        {name: 'client.ts', note: 'SQLite WASM + OPFS — persists across reloads'},
+        {name: 'migrations.ts'}
+      ]},
+      {name: 'app/services/', children: [
+        {name: 'local-mutation.ts', note: 'commit() \u2014 state + event + outbox, one transaction'},
+        {name: 'sync/', children: [
+          {name: 'SyncEngine.ts', note: 'push \u00b7 pull \u00b7 adaptive retry'},
+          {name: 'HLCClock.ts', note: 'per-field clock \u00b7 60s drift guard'}
+        ]}
+      ]},
+      {name: 'shared/db/schema/*', note: 'Drizzle \u2014 one schema, SQLite and Postgres'}
+    ]},
+    {label: 'Server \u2014 background authority', accent: true, tree: [
+      {name: 'services/cmd/', children: [
+        {name: 'peaky-api/', note: 'push \u00b7 pull \u00b7 HLC resolution \u00b7 entitlements'},
+        {name: 'peaky-sse/', note: 'fan-out \u2014 cursor pointer only'}
+      ]},
+      {name: 'services/internal/syncengine/', children: [
+        {name: 'conflict/conflict.go', note: 'per-field HLC winner'},
+        {name: 'repo/queries.sql', note: 'SQL upsert \u2014 WHERE hlc > \u2026 is the safety net'}
+      ]},
+      {name: 'services/internal/sse/hub.go', note: 'PG LISTEN/NOTIFY fan-out'}
+    ]}
+  ]
+});
+
+/* 05 · Global sync — the whole pipeline as one diagram, reused at the close */
+var syncFlowItems = [
+  {type:'station', kind:'accent', when:'THE USER SEES', label:'Write to local SQLite', sub:'~1 ms \u00b7 UI updates immediately'},
+  {type:'station', kind:'warn', when:'IN THE BACKGROUND', label:'SyncEngine pushes the outbox', sub:'POST /sync/push \u00b7 adaptive retry on failure'},
+  {type:'gate', when:'ON THE SERVER', label:'Per-field HLC resolution', sub:'peaky-api compares each field\u2019s clock', outcomes:[{tone:'ok', text:'\u2713 newer HLC wins'},{tone:'bad', text:'\u2715 stale HLC rejected'}]},
+  {type:'station', kind:'ok', check:true, sub:'pg_notify \u2192 peaky-sse \u2192 every entitled peer pulls'}
+];
+var globalFlow = renderFlow('#globalFlow', { ariaLabel: 'the local-first sync pipeline', items: syncFlowItems });
+var closeFlow = renderFlow('#closeFlow', { ariaLabel: 'the local-first sync pipeline, again', items: syncFlowItems });
+
+/* 06 · Resilience — the baseline looking grey is the argument */
+renderBeforeAfter('#resilienceBA', {
+  aspectLabel: 'Scenario', beforeLabel: 'Traditional app', afterLabel: 'Local-first (Peaky)',
+  rows: [
+    {aspect:'No internet for 30 minutes', before:'Saves fail silently, or the app shows errors', after:'All writes stay local; the outbox queues and flushes on reconnect', flag:{kind:'done', label:'works'}},
+    {aspect:'Postgres maintenance window', before:'The app is down until the database returns', after:'Sync pauses; the local database keeps working', flag:{kind:'done', label:'works'}},
+    {aspect:'ECS service restart', before:'In-flight requests fail; work can be lost', after:'The outbox retries on its backoff schedule', flag:{kind:'done', label:'works'}},
+    {aspect:'Singapore \u2194 Amsterdam, worst-case network', before:'Every action costs 170+ ms, round trip', after:'\u2248 1 ms \u2014 the write is local; sync is background', flag:{kind:'done', label:'works'}},
+    {aspect:'Permission revoked mid-session', before:'The next write fails; the user sees an error', after:'Changes are held in a pending queue for human review, not lost', flag:{kind:'progress', label:'held for review'}}
+  ]
+});
+
+/* 07 · Conflicts & HLC — four scenarios, one deterministic rule */
+var conflictsStepper = renderStepper('#conflictsStepper', { steps: [
+  {label:'Scenario 1', title:'Alice pushes first \u2014 and still loses', body:'Alice\u2019s push arrives at the server first, but her write carries an older wallclock (<code>\u2026100000</code>) than Bob\u2019s (<code>\u2026100500</code>). Bob wins that field \u2014 arrival order at the server never decides.'},
+  {label:'Scenario 2', title:'Bob pushes first \u2014 and still loses', body:'Bob\u2019s push arrives first with wallclock <code>\u2026100000</code>. Alice\u2019s arrives 500ms later at the server but carries a newer wallclock (<code>\u2026100800</code>) \u2014 she wrote later, so she wins, regardless of arrival order.'},
+  {label:'Scenario 3', title:'Same millisecond \u2014 tiebreak by actor id', body:'Both writes carry the identical wallclock and counter. The tiebreak is lexicographic comparison of actor id: <code>"actor_bob"</code> &gt; <code>"actor_alice"</code>, so Bob wins. Every replica reaches the same answer independently, with no coordination.'},
+  {label:'Scenario 4', title:'Different fields \u2014 resolved independently', body:'Alice writes <code>answer</code>; Bob writes <code>answer</code> and <code>naReason</code> with a newer HLC on both. Each field resolves on its own clock \u2014 partial wins are exactly how per-field HLC protects against one user\u2019s whole write silently disappearing.'}
+]});
+
+/* 07 · Conflicts & HLC — four protection layers, each closing a different gap */
+renderLedger('#conflictsLedger', { numbered: true, groups: [{
+  label: 'Four protection layers', rows: [
+    {title:'Per-field conflict resolution', sub:'wrong field wins is the failure mode this closes \u2014 entity-level last-write-wins silently drops partial updates', ref:'conflict.go'},
+    {title:'Atomic SQL upsert', sub:'the WHERE clause is the safety net for a concurrent push racing to the same row, between the read and the write', ref:'queries.sql'},
+    {title:'Clock sync on pull', sub:'a slow client clock would otherwise lose every conflict; receive() advances it to causally current', ref:'HLCClock.ts'},
+    {title:'Jump clock guard', sub:'a misconfigured clock (NTP drift, VM resume) could otherwise poison every future conflict for every peer', ref:'MAX_DRIFT_MS = 60s'}
+  ]
+}]});
+
+/* 08 · SSE — polling vs push wake-up */
+renderContrast('#sseContrast', { cols: [
+  {eyebrow:'Without SSE', title:'30-second polling', points:['Alice sees Bob\u2019s change up to 30s late', 'Server load scales with clients \u00d7 poll interval', 'Still converges \u2014 just slower']},
+  {eyebrow:'With SSE', title:'Push wake-up', accent:true, points:['pg_notify fires the moment a push is accepted', 'peaky-sse fans out to entitled browsers only', 'A disconnect falls back to 30s polling automatically'], foot:'no domain data ever leaves peaky-sse'}
+]});
+
+/* 09 · Peaky end to end — one concrete save, nine steps */
+var walkStepper = renderStepper('#walkStepper', { steps: [
+  {label:'Step 1', title:'User action in the browser', body:'Alice (Amsterdam) types an answer and clicks Save. A Vue composable delegates to a domain service. No spinner appears \u2014 the network is not consulted.'},
+  {label:'Step 2', title:'LocalMutation.commit()', body:'One SQLite transaction: the answer row is written, a domain event is inserted into <code>events</code>, and an entry is queued in <code>local_outbox</code>. All three succeed, or none do.'},
+  {label:'Step 3', title:'Reactive update', body:'SQLite commits in ~1 ms. Drizzle\u2019s reactive queries observe the new row \u2014 the UI shows "Saved" before any network packet has left Alice\u2019s browser.'},
+  {label:'Step 4', title:'SyncEngine drains the outbox', body:'The background <code>SyncEngine</code> batches pending entries and calls <code>POST /sync/push</code> on <code>peaky-api</code>. If the network is down, exponential backoff waits \u2014 Alice is unaffected either way.'},
+  {label:'Step 5', title:'peaky-api: per-field HLC resolution', body:'For each field, <code>peaky-api</code> compares the incoming HLC against the stored version. Newer HLCs are accepted; older ones are rejected \u2014 independently, per field.'},
+  {label:'Step 6', title:'pg_notify fires', body:'After accepting the push, <code>peaky-api</code> calls <code>pg_notify(\'sync:{subjectType}:{subjectId}\', \'{"cursor":"\u2026"}\')</code>. PostgreSQL delivers it to every listening connection in the cluster \u2014 no external message bus.'},
+  {label:'Step 7', title:'peaky-sse fans out', body:'<code>peaky-sse</code> holds a dedicated PG LISTEN connection. On notification, it sends a cursor-pointer frame to every entitled browser \u2014 no domain data crosses the wire.'},
+  {label:'Step 8', title:'Bob (Singapore) pulls', body:'Bob\u2019s browser receives the frame and calls <code>pullChanges()</code>. The pull is incremental and entitlement-gated on <code>peaky-api</code>; Bob\u2019s local SQLite updates and his UI reflects Alice\u2019s answer.'},
+  {label:'End state', title:'Converged', body:'Both browsers hold the same answer locally. PostgreSQL is still the durable authority. If either browser goes offline now, it already has the latest state \u2014 there is nothing left to push.'}
+]});
+
+/* Guardrails — the three invariants, grounded in real files */
+renderLedger('#guardLedger', { groups: [{
+  rows: [
+    {title:'Write local first', sub:'every mutation goes through <code>LocalMutation.commit()</code> \u2014 state, event, and outbox in one SQLite transaction'},
+    {title:'The server resolves conflicts, not the client', sub:'HLC resolution lives in <code>conflict.go</code> with a SQL WHERE clause as the atomic safety net; the client accepts the server\u2019s verdict per field'},
+    {title:'SSE is an optimization, not a dependency', sub:'a client without SSE still converges via 30s polling \u2014 losing it degrades experience, not correctness'}
+  ]
+}]});
+
+initPresent([
+  {pick:['#top .reveal']},
+  {kicker:'01 \u00b7 The problem', pick:['#oldworldHead', '#oldworldStat'], steps:{count:2, go:function(i){ if(i>0) oldworldStat.play(); }}},
+  {kicker:'02 \u00b7 The fixes that fail', pick:['#fixesfailHead', '#fixesfailLedger'], steps:(function(){var f=fragSteps('#fixesfailLedger .kl-row');return {count:f.count+1, go:function(i){f.go(i-1)}};})()},
+  {kicker:'03 \u00b7 Flip the model', pick:['#conceptHead', '#conceptComparison'], steps:(function(){var f=fragSteps('#conceptComparison .kc-row');return {count:f.count+1, go:function(i){f.go(i-1)}};})()},
+  {kicker:'04 \u00b7 The shape', layout:'wide', pick:['#shapeHead', '#shapeTree']},
+  {kicker:'05 \u00b7 Global sync', layout:'diagram', pick:['#globalHead', '#globalFlow'], steps:{count:globalFlow.count, go:globalFlow.go}},
+  {kicker:'06 \u00b7 Resilience', pick:['#resilienceHead', '#resilienceBA'], steps:(function(){var f=fragSteps('#resilienceBA .kb-row');return {count:f.count+1, go:function(i){f.go(i-1)}};})()},
+  {kicker:'07 \u00b7 Conflicts & HLC', pick:['#conflictsHead', '#conflictsCode']},
+  {kicker:'07 \u00b7 Conflicts & HLC', title:'Four scenarios, one deterministic rule', pick:['#conflictsStepper'], minScale:0.85, steps:{count:conflictsStepper.count, go:conflictsStepper.go}},
+  {kicker:'07 \u00b7 Conflicts & HLC', title:'Four protection layers', pick:['#conflictsLedger'], steps:(function(){var f=fragSteps('#conflictsLedger .kl-row');return {count:f.count+1, go:function(i){f.go(i-1)}};})()},
+  {kicker:'08 \u00b7 Real-time updates', pick:['#sseHead', '#sseContrast', '#ssePayload'], steps:(function(){var f=fragSteps('#sseContrast .kx-col');return {count:f.count+1, go:function(i){f.go(i-1)}};})()},
+  {kicker:'09 \u00b7 Peaky, end to end', pick:['#walkHead', '#walkStepper'], minScale:0.85, steps:{count:walkStepper.count, go:walkStepper.go}},
+  {kicker:'Guardrails', pick:['#guardHead', '#guardLedger'], steps:(function(){var f=fragSteps('#guardLedger .kl-row');return {count:f.count+1, go:function(i){f.go(i-1)}};})()},
+  {pick:['#close']}
+]);
+</script>
